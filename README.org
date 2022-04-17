@@ -1,0 +1,50 @@
+#+TITLE: Yet Another Kernel Builder v1.0
+
+* Table of contents
+:PROPERTIES:
+:TOC:
+:END:
+:CONTENTS:
+- [[#about][About]]
+- [[#usage][Usage]]
+- [[#supported-compilers][Supported Compilers]]
+- [[#how-to-contribute][How To Contribute]]
+:END:
+
+* About
+
+YAKB is a two-way modular android kernel build script written in bash which is extensive.
+
+What it means to be two-way is that it is an argument-based script and a menu-based script.
+
+* Usage
+
+- Edit main.sh according to your needs. (read the comments for explanation on each variable.)
+
+** CLI way
+
+#+BEGIN_SRC shell
+  kver=<kernelbuildversion> zipn=<zipname> bash main.sh img mkzip
+#+END_SRC
+
+This builds the kernel and makes an anykernel3 zip.
+
+** Menu way
+
+#+BEGIN_SRC shell
+  bash main.sh
+#+END_SRC
+
+This executes the script and will show two prompts to enter value of kver and zipn. (This can be done for CLI way aswell.)
+Next it will open a menu-based program which has 9 options for you to choose from.
+
+* Supported Compilers
+
++ =EvaGCC 12.0.0=
++ =Proton Clang 13.0.0=
++ =Any custom clang toolchain with GNU binutils and LLVM binutils included=
++ =Any custom GCC toolchain with GNU binutils and LLVM binutils included=
+
+* How To Contribute
+
+Feel free to drop a PR to improve this script.
