@@ -293,14 +293,14 @@ upr() {
 # A function to showcase the options provided for args-based usage.
 helpmenu() {
     echo -e "\n\e[1m
-usage: kver=<version number> zipn=<zip name> ./kramel.sh <arg>
+usage: kver=<version number> zipn=<zip name> $0 <arg>
 
-example: ./kramel.sh --kver=69 --zipn=Kernel-Beta mcfg
-example: ./kramel.sh --kver=420 --zipn=Kernel-Beta mcfg img
-example: ./kramel.sh --kver=69420 --zipn=Kernel-Beta mcfg img mkzip
-example: ./kramel.sh --kver=1 --zipn=Kernel-Beta --obj=drivers/android/binder.o
-example: ./kramel.sh --kver=2 --zipn=Kernel-Beta --obj=kernel/sched/
-example: ./kramel.sh --kver=3 --zipn=Kernel-Beta--upr=r16
+example: $0 --kver=69 --zipn=Kernel-Beta mcfg
+example: $0 --kver=420 --zipn=Kernel-Beta mcfg img
+example: $0 --kver=69420 --zipn=Kernel-Beta mcfg img mkzip
+example: $0 --kver=1 --zipn=Kernel-Beta --obj=drivers/android/binder.o
+example: $0 --kver=2 --zipn=Kernel-Beta --obj=kernel/sched/
+example: $0 --kver=3 --zipn=Kernel-Beta--upr=r16
 
 	 mcfg   Runs make menuconfig
 	 img    Builds Kernel
