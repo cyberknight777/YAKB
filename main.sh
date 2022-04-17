@@ -204,7 +204,7 @@ img() {
 *Date*: \`$(date)\`
 *Zip Name*: \`${zipn}\`
 *Compiler*: \`${KBUILD_COMPILER_STRING}\`
-*Linker*: \`$(${KDIR}/ld.lld -v | head -n1 | sed 's/(compatible with [^)]*)//' |
+*Linker*: \`$("${KDIR}"/ld.lld -v | head -n1 | sed 's/(compatible with [^)]*)//' |
             head -n 1 | perl -pe 's/\(http.*?\)//gs' | sed -e 's/  */ /g' -e 's/[[:space:]]*$//')\`
 *Branch*: \`$(git rev-parse --abbrev-ref HEAD)\`
 *Last Commit*: [${COMMIT_HASH}](${REPO_URL}/commit/${COMMIT_HASH})
