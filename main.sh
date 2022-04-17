@@ -74,6 +74,10 @@ if [[ "${COMPILER}" = gcc ]]; then
 	mv "${KDIR}"/gcc-arm-c8b46a6ab60d998b5efa1d5fb6aa34af35a95bad "${KDIR}"/gcc32
     fi
 
+    if [ ! -f "${KDIR}/ld.lld" ]; then
+	wget https://gitlab.com/zlatanr/dora-clang-1/-/raw/master/bin/lld -O ld.lld && chmod +x ld.lld
+    fi
+
     KBUILD_COMPILER_STRING=$("${KDIR}"/gcc64/bin/aarch64-elf-gcc --version | head -n 1)
     export KBUILD_COMPILER_STRING
     export PATH="${KDIR}"/gcc32/bin:"${KDIR}"/gcc64/bin:/usr/bin/:${PATH}
@@ -82,7 +86,7 @@ if [[ "${COMPILER}" = gcc ]]; then
 	O=out
 	CROSS_COMPILE=aarch64-elf-
 	CROSS_COMPILE_ARM32=arm-eabi-
-	LD=aarch64-elf-"${LINKER}"
+	LD="${KDIR}"/ld.lld
 	AR=llvm-ar
 	OBJDUMP=llvm-objdump
 	STRIP=llvm-strip
@@ -200,7 +204,7 @@ img() {
 *Date*: \`$(date)\`
 *Zip Name*: \`${zipn}\`
 *Compiler*: \`${KBUILD_COMPILER_STRING}\`
-*Linker*: \`$(${LINKER} -v | head -n1 | sed 's/(compatible with [^)]*)//' |
+*Linker*: \`$(${KDIR}/ld.lld -v | head -n1 | sed 's/(compatible with [^)]*)//' |
 		head -n 1 | perl -pe 's/\(http.*?\)//gs' | sed -e 's/  */ /g' -e 's/[[:space:]]*$//')\`
 *Branch*: \`$(git rev-parse --abbrev-ref HEAD)\`
 *Last Commit*: [${COMMIT_HASH}](${REPO_URL}/commit/${COMMIT_HASH})
