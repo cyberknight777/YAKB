@@ -24,7 +24,7 @@ What it means to be two-way is that it is an argument-based script and a menu-ba
 ** CLI way
 
 #+BEGIN_SRC shell
-  kver=<kernelbuildversion> zipn=<zipname> bash main.sh img mkzip
+  bash main.sh --kver=<kernelbuildversion> --zipn=<zipname> img mkzip
 #+END_SRC
 
 This builds the kernel and makes an anykernel3 zip.

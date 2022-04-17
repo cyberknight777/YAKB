@@ -295,12 +295,12 @@ helpmenu() {
     echo -e "\n\e[1m
 usage: kver=<version number> zipn=<zip name> ./kramel.sh <arg>
 
-example: kver=69 zipn=Kernel-Beta ./kramel.sh mcfg
-example: kver=420 zipn=Kernel-Beta ./kramel.sh mcfg img
-example: kver=69420 zipn=Kernel-Beta ./kramel.sh mcfg img mkzip
-example: kver=1 zipn=Kernel-Beta ./kramel.sh --obj=drivers/android/binder.o
-example: kver=2 zipn=Kernel-Beta ./kramel.sh --obj=kernel/sched/
-example: kver=3 zipn=Kernel-Beta ./kramel.sh --upr=r16
+example: ./kramel.sh --kver=69 --zipn=Kernel-Beta mcfg
+example: ./kramel.sh --kver=420 --zipn=Kernel-Beta mcfg img
+example: ./kramel.sh --kver=69420 --zipn=Kernel-Beta mcfg img mkzip
+example: ./kramel.sh --kver=1 --zipn=Kernel-Beta --obj=drivers/android/binder.o
+example: ./kramel.sh --kver=2 --zipn=Kernel-Beta --obj=kernel/sched/
+example: ./kramel.sh --kver=3 --zipn=Kernel-Beta--upr=r16
 
 	 mcfg   Runs make menuconfig
 	 img    Builds Kernel
@@ -309,7 +309,9 @@ example: kver=3 zipn=Kernel-Beta ./kramel.sh --upr=r16
 	 mkzip  Builds anykernel3 zip
 	 --obj  Builds specific driver/subsystem
 	 rgn    Regenerates defconfig
-	 --upr  Uprevs kernel version in defconfig\e[0m"
+	 --upr  Uprevs kernel version in defconfig\e[0m
+	 --kver kernel buildversion
+	 --zipn zip name"
 }
 
 # A function to setup menu-based usage.
@@ -495,6 +497,22 @@ for arg in "$@"; do
             exit 1
         else
             upr "$vers"
+        fi
+        ;;
+    "--kver="*)
+        kvv="${arg#*=}"
+        if [[ -z "$kvv" ]]; then
+            echo "Use --kver=version"
+        else
+            export kver="$kvv"
+        fi
+        ;;
+    "--zipn"*)
+        zpn="${arg#*=}"
+        if [[ -z "$zpn" ]]; then
+            echo "Use --zipn=zipname"
+        else
+            export zipn="$zpn"
         fi
         ;;
     "help")
