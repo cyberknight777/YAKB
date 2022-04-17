@@ -54,9 +54,11 @@ export PROCS
 export COMPILER=gcc
 
 # Requirements
-if ! hash dialog pv make curl wget unzip find 2>/dev/null; then
-   echo -e "\n\e[1;31m[✗] Install dialog, pv, make, curl, wget, unzip, and find! \e[0m"
-   exit 1
+if [ "${ci}" != 1 ]; then
+    if ! hash dialog pv make curl wget unzip find 2>/dev/null; then
+	echo -e "\n\e[1;31m[✗] Install dialog, pv, make, curl, wget, unzip, and find! \e[0m"
+	exit 1
+    fi
 fi
 
 if [[ "${COMPILER}" = gcc ]]; then
