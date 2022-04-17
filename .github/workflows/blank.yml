@@ -1,0 +1,7 @@
+name: YAKB
+on: workflow_dispatch
+jobs:
+  runs yakb:
+    runs-on: ubuntu-latest
+    steps:
+      - run: bash main.sh
