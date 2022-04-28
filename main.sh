@@ -499,22 +499,6 @@ for arg in "$@"; do
             upr "$vers"
         fi
         ;;
-    "--kver="*)
-        kvv="${arg#*=}"
-        if [[ -z "$kvv" ]]; then
-            echo "Use --kver=version"
-        else
-            export kver="$kvv"
-        fi
-        ;;
-    "--zipn"*)
-        zpn="${arg#*=}"
-        if [[ -z "$zpn" ]]; then
-            echo "Use --zipn=zipname"
-        else
-            export zipn="$zpn"
-        fi
-        ;;
     "help")
         helpmenu
         exit 1
