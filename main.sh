@@ -259,6 +259,7 @@ mkzip() {
         tg "*Building zip!*"
     fi
     echo -e "\n\e[1;93m[*] Building zip! \e[0m"
+    mv "${KDIR}"/out/arch/arm64/boot/dts/qcom/sm8150-v2.dtb "${KDIR}"/anykernel3-dragonheart/dtb
     mv "${KDIR}"/out/arch/arm64/boot/dtbo.img "${KDIR}"/anykernel3-dragonheart
     mv "${KDIR}"/out/arch/arm64/boot/Image "${KDIR}"/anykernel3-dragonheart
     cd "${KDIR}"/anykernel3-dragonheart || exit 1
