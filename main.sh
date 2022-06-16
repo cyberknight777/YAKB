@@ -341,7 +341,8 @@ ndialog() {
         6 "Uprev localversion"
         7 "Build AnyKernel3 zip"
         8 "Build a specific object"
-        9 "Exit"
+        9 "Clean"
+        10 "Exit"
     )
     CHOICE=$(dialog --clear \
         --backtitle "$BACKTITLE" \
@@ -457,6 +458,19 @@ ndialog() {
         fi
         ;;
     9)
+        clear
+        clean
+        img
+        echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
+        read -r a1
+        if [ "$a1" == "0" ]; then
+            exit 0
+        else
+            clear
+            ndialog
+        fi
+        ;;
+    10)
         echo -e "\n\e[1m Exiting YAKB...\e[0m"
         sleep 3
         exit 0
@@ -509,6 +523,9 @@ for arg in "$@"; do
         else
             upr "$vers"
         fi
+        ;;
+    "clean")
+        clean
         ;;
     "help")
         helpmenu
