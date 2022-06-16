@@ -41,7 +41,7 @@ export COMMIT_HASH
 # Telegram Information. Set 1 to enable. | Set 0 to disable.
 export TGI=1
 
-# Personal builds. Set 1 to do personal builds. | Set 0 to do public builds.
+# Personal builds. Set 1 to enable. | Set 0 to disable.
 if [ "${PERSONAL}" = 1 ]; then
     export CHATID=607425846
 else
