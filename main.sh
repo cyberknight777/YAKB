@@ -88,8 +88,14 @@ if [[ "${COMPILER}" = gcc ]]; then
         CROSS_COMPILE_ARM32=arm-eabi-
         LD="${KDIR}"/gcc64/bin/aarch64-elf-"${LINKER}"
         AR=llvm-ar
+        NM=llvm-nm
         OBJDUMP=llvm-objdump
+        OBJCOPY=llvm-objcopy
+        OBJSIZE=llvm-objsize
         STRIP=llvm-strip
+        HOSTAR=llvm-ar
+        HOSTCC=gcc
+        HOSTCXX=aarch64-elf-g++
         CC=aarch64-elf-gcc
     )
 
