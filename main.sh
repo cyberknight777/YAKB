@@ -69,15 +69,13 @@ fi
 
 if [[ "${COMPILER}" = gcc ]]; then
     if [ ! -d "${KDIR}/gcc64" ]; then
-        wget -O "${KDIR}"/64.zip https://github.com/mvaisakh/gcc-arm64/archive/1a4410a4cf49c78ab83197fdad1d2621760bdc73.zip
-        unzip "${KDIR}"/64.zip
-        mv "${KDIR}"/gcc-arm64-1a4410a4cf49c78ab83197fdad1d2621760bdc73 "${KDIR}"/gcc64
+        curl -sL https://github.com/cyberknight777/gcc-arm64/archive/refs/heads/master.tar.gz | tar -xzf -
+        mv "${KDIR}"/gcc-arm64-master "${KDIR}"/gcc64
     fi
 
     if [ ! -d "${KDIR}/gcc32" ]; then
-        wget -O "${KDIR}"/32.zip https://github.com/mvaisakh/gcc-arm/archive/c8b46a6ab60d998b5efa1d5fb6aa34af35a95bad.zip
-        unzip "${KDIR}"/32.zip
-        mv "${KDIR}"/gcc-arm-c8b46a6ab60d998b5efa1d5fb6aa34af35a95bad "${KDIR}"/gcc32
+	curl -sL https://github.com/cyberknight777/gcc-arm/archive/refs/heads/master.tar.gz | tar -xzf -
+        mv "${KDIR}"/gcc-arm-master "${KDIR}"/gcc32
     fi
 
     if [ ! -f "${KDIR}/ld.lld" ]; then
