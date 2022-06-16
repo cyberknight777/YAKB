@@ -219,7 +219,7 @@ img() {
     rgn
     echo -e "\n\e[1;93m[*] Building Kernel! \e[0m"
     BUILD_START=$(date +"%s")
-    time make -j"$PROCS" "${MAKE[@]}" Image dtbo.img 2>&1 | tee log.txt
+    time make -j"$PROCS" "${MAKE[@]}" Image dtbo.img dtb.img 2>&1 | tee log.txt
     BUILD_END=$(date +"%s")
     DIFF=$((BUILD_END - BUILD_START))
     if [ -f "${KDIR}/out/arch/arm64/boot/Image" ]; then
@@ -240,7 +240,7 @@ img() {
 dtb() {
     rgn
     echo -e "\n\e[1;93m[*] Building DTBS! \e[0m"
-    time make -j"$PROCS" "${MAKE[@]}" dtbs dtbo.img
+    time make -j"$PROCS" "${MAKE[@]}" dtbs dtbo.img dtb.img
     echo -e "\n\e[1;32m[✓] Built DTBS! \e[0m"
 }
 
@@ -265,10 +265,13 @@ mkzip() {
         tg "*Building zip!*"
     fi
     echo -e "\n\e[1;93m[*] Building zip! \e[0m"
-    mkdir -p "${KDIR}"/anykernel3-dragonheart/erofs
-    mv "${KDIR}"/out/arch/arm64/boot/dts/qcom/sm8150-erofs.dtb "${KDIR}"/anykernel3-dragonheart/erofs/sm8150-erofs.dtb
-    mv "${KDIR}"/out/arch/arm64/boot/dts/qcom/sm8150-v2.dtb "${KDIR}"/anykernel3-dragonheart/dtb
+    mkdir -p "${KDIR}"/anykernel3-dragonheart/dtbs
     mv "${KDIR}"/out/arch/arm64/boot/dtbo.img "${KDIR}"/anykernel3-dragonheart
+    mv "${KDIR}"/out/arch/arm64/boot/dtb.img "${KDIR}"/anykernel3-dragonheart/dtbs/
+    sed -i 's/ext4/erofs/g' "${KDIR}"/arch/arm64/boot/dts/qcom/sm8150.dtsi
+    sed -i 's/,barrier=1,discard//g' "${KDIR}"/arch/arm64/boot/dts/qcom/sm8150.dtsi
+    time make -j"$PROCS" "${MAKE[@]}" dtb.img
+    mv "${KDIR}"/out/arch/arm64/boot/dtb.img "${KDIR}"/anykernel3-dragonheart/dtbs/dtb_erofs.img
     mv "${KDIR}"/out/arch/arm64/boot/Image "${KDIR}"/anykernel3-dragonheart
     cd "${KDIR}"/anykernel3-dragonheart || exit 1
     zip -r9 "$zipn".zip . -x ".git*" -x "README.md" -x "LICENSE" -x "*.zip"
