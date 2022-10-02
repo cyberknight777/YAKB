@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 # Written by: cyberknight777
 # YAKB v1.0
 # Copyright (c) 2022-2023 Cyber Knight <cyberknight755@gmail.com>
@@ -76,14 +76,14 @@ if [ "${ci}" != 1 ]; then
     fi
 fi
 
-if [[ "${COMPILER}" = gcc ]]; then
+if [[ ${COMPILER} == gcc ]]; then
     if [ ! -d "${KDIR}/gcc64" ]; then
         curl -sL https://github.com/cyberknight777/gcc-arm64/archive/refs/heads/master.tar.gz | tar -xzf -
         mv "${KDIR}"/gcc-arm64-master "${KDIR}"/gcc64
     fi
 
     if [ ! -d "${KDIR}/gcc32" ]; then
-	curl -sL https://github.com/cyberknight777/gcc-arm/archive/refs/heads/master.tar.gz | tar -xzf -
+        curl -sL https://github.com/cyberknight777/gcc-arm/archive/refs/heads/master.tar.gz | tar -xzf -
         mv "${KDIR}"/gcc-arm-master "${KDIR}"/gcc32
     fi
 
@@ -108,7 +108,7 @@ if [[ "${COMPILER}" = gcc ]]; then
         CC=aarch64-elf-gcc
     )
 
-elif [[ "${COMPILER}" = clang ]]; then
+elif [[ ${COMPILER} == clang ]]; then
     if [ ! -d "${KDIR}/proton-clang" ]; then
         wget https://github.com/kdrag0n/proton-clang/archive/refs/heads/master.zip
         unzip "${KDIR}"/master.zip
@@ -210,7 +210,7 @@ mcfg() {
 
 # A function to build the kernel.
 img() {
-    if [[ "${TGI}" != "0" ]]; then
+    if [[ ${TGI} != "0" ]]; then
         tg "
 *Build Number*: \`${kver}\`
 *Status*: \`${STATUS}\`
@@ -234,12 +234,12 @@ img() {
     BUILD_END=$(date +"%s")
     DIFF=$((BUILD_END - BUILD_START))
     if [ -f "${KDIR}/out/arch/arm64/boot/Image" ]; then
-        if [[ "${SILENT}" != "1" ]]; then
+        if [[ ${SILENT} != "1" ]]; then
             tg "*Kernel Built after $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)*"
         fi
         echo -e "\n\e[1;32m[✓] Kernel built after $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)! \e[0m"
     else
-        if [[ "${TGI}" != "0" ]]; then
+        if [[ ${TGI} != "0" ]]; then
             tgs "log.txt" "*Build failed*"
         fi
         echo -e "\n\e[1;31m[✗] Build Failed! \e[0m"
@@ -257,7 +257,7 @@ dtb() {
 
 # A function to build out-of-tree modules.
 mod() {
-    if [[ "${TGI}" != "0" ]]; then
+    if [[ ${TGI} != "0" ]]; then
         tg "*Building Modules!*"
     fi
     rgn
@@ -272,7 +272,7 @@ mod() {
 
 # A function to build an AnyKernel3 zip.
 mkzip() {
-    if [[ "${TGI}" != "0" ]]; then
+    if [[ ${TGI} != "0" ]]; then
         tg "*Building zip!*"
     fi
     echo -e "\n\e[1;93m[*] Building zip! \e[0m"
@@ -287,18 +287,18 @@ mkzip() {
     cd "${KDIR}"/anykernel3-dragonheart || exit 1
     zip -r9 "$zipn".zip . -x ".git*" -x "README.md" -x "LICENSE" -x "*.zip"
     echo -e "\n\e[1;32m[✓] Built zip! \e[0m"
-    if [[ "${CI}" != "0" ]]; then
-	git clone https://github.com/cyberknight777/op7_json.git
-	cd op7_json || exit 1
-	echo "https://cyberknight777:$PASSWORD@github.com" > .pwd
-	git config credential.helper "store --file .pwd"
-	sha1=$(sha1sum ../"${zipn}".zip | cut -d ' ' -f1)
-	if [[ "${RELEASE}" != "1" ]]; then
-	    rm changelog_r.md
-	    wget "${link}/raw" -O changelog_r.md
-	    gh release create "${version}" -t "DragonHeart for $CODENAME [BLEEDING EDGE] - $version"
-	    gh release upload "${version}" ../"${zipn}.zip"
-	    echo "
+    if [[ ${CI} != "0" ]]; then
+        git clone https://github.com/cyberknight777/op7_json.git
+        cd op7_json || exit 1
+        echo "https://cyberknight777:$PASSWORD@github.com" >.pwd
+        git config credential.helper "store --file .pwd"
+        sha1=$(sha1sum ../"${zipn}".zip | cut -d ' ' -f1)
+        if [[ ${RELEASE} != "1" ]]; then
+            rm changelog_r.md
+            wget "${link}/raw" -O changelog_r.md
+            gh release create "${version}" -t "DragonHeart for $CODENAME [BLEEDING EDGE] - $version"
+            gh release upload "${version}" ../"${zipn}.zip"
+            echo "
 {
   \"kernel\": {
   \"name\": \"DragonHeart\",
@@ -312,15 +312,15 @@ mkzip() {
     \"link\": \"https://t.me/knightschat\"
   }
 }
-" > DragonHeart-r.json
-	    git add DragonHeart-r.json changelog_r.md || exit 1
-	    git commit -s -m "DragonHeart: Update $CODENAME to $version release" -m "- This is a bleeding edge release."
-	else
-	    rm changelog.md
-	    wget "${link}"/raw -O changelog.md
-	    gh release create "${version}" -t "DragonHeart for $CODENAME [RELEASE] - $version"
-	    gh release upload "${version}" ../"${zipn}.zip"
-	    echo "
+" >DragonHeart-r.json
+            git add DragonHeart-r.json changelog_r.md || exit 1
+            git commit -s -m "DragonHeart: Update $CODENAME to $version release" -m "- This is a bleeding edge release."
+        else
+            rm changelog.md
+            wget "${link}"/raw -O changelog.md
+            gh release create "${version}" -t "DragonHeart for $CODENAME [RELEASE] - $version"
+            gh release upload "${version}" ../"${zipn}.zip"
+            echo "
 {
   \"kernel\": {
   \"name\": \"DragonHeart\",
@@ -334,16 +334,16 @@ mkzip() {
     \"link\": \"https://t.me/knightschat\"
   }
 }
-" > DragonHeart-rc.json
-	    git add DragonHeart-rc.json changelog.md || exit 1
-	    git commit -s -m "DragonHeart: Update $CODENAME to $version release" -m "- This is a stable release."
-	fi
-	git push
-	cd ../ || exit 1
+" >DragonHeart-rc.json
+            git add DragonHeart-rc.json changelog.md || exit 1
+            git commit -s -m "DragonHeart: Update $CODENAME to $version release" -m "- This is a stable release."
+        fi
+        git push
+        cd ../ || exit 1
     fi
-    if [[ "${TGI}" != "0" ]]; then
+    if [[ ${TGI} != "0" ]]; then
         tgs "${zipn}.zip" "*#${kver} ${KBUILD_COMPILER_STRING}*"
-	tg "
+        tg "
 *OTA*: https://raw.githubusercontent.com/cyberknight777/op7\_json/master/DragonHeart-${re}.json
 *Changelog*: https://github.com/cyberknight777/op7\_json/blob/master/changelog\_${re}.md
 "
@@ -574,7 +574,7 @@ for arg in "$@"; do
         ;;
     "--obj="*)
         object="${arg#*=}"
-        if [[ -z "$object" ]]; then
+        if [[ -z $object ]]; then
             echo "Use --obj=filename.o"
             exit 1
         else
@@ -586,7 +586,7 @@ for arg in "$@"; do
         ;;
     "--upr="*)
         vers="${arg#*=}"
-        if [[ -z "$vers" ]]; then
+        if [[ -z $vers ]]; then
             echo "Use --upr=version"
             exit 1
         else
