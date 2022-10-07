@@ -413,7 +413,9 @@ ndialog() {
         9 "Clean"
         10 "Exit"
     )
-    CHOICE=$(dialog --clear \
+    
+    #why dont use while loop here 
+    CHOICE=$(dialog --clear \   
         --backtitle "$BACKTITLE" \
         --title "$TITLE" \
         --menu "$MENU" \
