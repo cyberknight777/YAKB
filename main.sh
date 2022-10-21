@@ -148,8 +148,11 @@ if [ "${ci}" != 1 ]; then
     if [ -z "${zipn}" ]; then
         echo -ne "\e[1mEnter zipname: \e[0m"
         read -r zipn
+    if [[ "${MODULE}" = "1" ]]; then
+        echo -ne "\e[1mEnter modulename: \e[0m"
+	read -r modn
     fi
-
+fi
 else
     export KBUILD_BUILD_VERSION=$DRONE_BUILD_NUMBER
     export KBUILD_BUILD_HOST=$DRONE_SYSTEM_HOST
@@ -380,7 +383,7 @@ example: $0 --kver=420 --zipn=Kernel-Beta mcfg img
 example: $0 --kver=69420 --zipn=Kernel-Beta mcfg img mkzip
 example: $0 --kver=1 --zipn=Kernel-Beta --obj=drivers/android/binder.o
 example: $0 --kver=2 --zipn=Kernel-Beta --obj=kernel/sched/
-example: $0 --kver=3 --zipn=Kernel-Beta--upr=r16
+example: $0 --kver=3 --zipn=Kernel-Beta --upr=r16 --modn=Beta-modules
 
 	 mcfg   Runs make menuconfig
 	 img    Builds Kernel
@@ -391,7 +394,8 @@ example: $0 --kver=3 --zipn=Kernel-Beta--upr=r16
 	 rgn    Regenerates defconfig
 	 --upr  Uprevs kernel version in defconfig\e[0m
 	 --kver kernel buildversion
-	 --zipn zip name"
+	 --zipn zip name
+	 --modn module name"
 }
 
 # A function to setup menu-based usage.
