@@ -24,7 +24,7 @@ What it means to be two-way is that it is an argument-based script and a menu-ba
 ** CLI way
 
 #+BEGIN_SRC shell
-  kver=<buildnumber> zipn=<zipname> bash main.sh img mkzip
+  bash main.sh img mkzip
 #+END_SRC
 
 This builds the kernel and makes an anykernel3 zip.
@@ -35,16 +35,20 @@ This builds the kernel and makes an anykernel3 zip.
   bash main.sh
 #+END_SRC
 
-This executes the script and will show two prompts to enter value of kver and zipn. (This can be done for CLI way aswell.)
-Next it will open a menu-based program which has 9 options for you to choose from.
+This executes the script and opens a menu-based program which has 9 options for you to choose from.
 
 * Supported Compilers
 
-+ =EvaGCC 12.0.0=
-+ =Proton Clang 13.0.0=
-+ =Any custom clang toolchain with GNU binutils and LLVM binutils included=
-+ =Any custom GCC toolchain with GNU binutils and LLVM binutils included=
+- =EvaGCC 12.0.0=
+- =Proton Clang 13.0.0=
+- =Neutron Clang 17.0.0=
+- =Any custom clang toolchain=
+- =Any custom GCC toolchain with GNU binutils=
 
 * How To Contribute
 
 Feel free to drop a PR to improve this script.
+
+* Version file
+
+Adapt this [[https://github.com/cyberknight777/dragonheart_kernel_oneplus_sm8150/commit/8a48d7facf525e050e7e6939031c602f9d035a1f][commit] for yourself.
