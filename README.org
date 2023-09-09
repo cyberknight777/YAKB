@@ -1,4 +1,4 @@
-#+TITLE: Yet Another Kernel Builder v1.0
+#+TITLE: Yet Another Kernel Builder v2.0
 
 * Table of contents
 :PROPERTIES:

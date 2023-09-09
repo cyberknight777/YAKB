@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Written by: cyberknight777
-# YAKB v1.0
+# YAKB v2.0
 # Copyright (c) 2022-2023 Cyber Knight <cyberknight755@gmail.com>
 #
 #			GNU GENERAL PUBLIC LICENSE
