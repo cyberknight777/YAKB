@@ -312,6 +312,7 @@ mkzip() {
 			gh release upload "${VERSION}" ../"${zipn}.zip"
 		fi
 		cd ../ || exit 1
+		rm -rf op7_json || exit 1
 	fi
 	if [[ ${TGI} == "1" ]]; then
 		tgs "${zipn}.zip" "*#${kver} ${KBUILD_COMPILER_STRING}*"
