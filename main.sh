@@ -63,6 +63,10 @@ export PROCS
 # Compiler to use for builds.
 export COMPILER=clang
 
+# GitHub Token utilized with the gh binary to release kernel builds.
+GH_TOKEN="${PASSWORD}"
+export GH_TOKEN
+
 # Requirements
 if [ "${CI}" == 0 ]; then
 	if ! hash dialog make curl wget unzip find 2>/dev/null; then
