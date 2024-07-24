@@ -51,4 +51,4 @@ Feel free to drop a PR to improve this script.
 
 * Version file
 
-Adapt this [[https://github.com/cyberknight777/dragonheart_kernel_oneplus_sm8150/commit/8a48d7facf525e050e7e6939031c602f9d035a1f][commit] for yourself.
+Adapt this [[https://github.com/cyberknight777/dragonheart_kernel_oneplus_sm8150/commit/8a48d7facf525e050e7e6939031c602f9d035a1f][commit]] for yourself.
