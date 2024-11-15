@@ -239,9 +239,8 @@ mod() {
 	rgn
 	echo -e "\n\e[1;93m[*] Building Modules! \e[0m"
 	mkdir -p "${KDIR}"/out/modules
-	make "${MAKE[@]}" modules_prepare
-	make -j"$PROCS" "${MAKE[@]}" modules INSTALL_MOD_PATH="${KDIR}"/out/modules
-	make "${MAKE[@]}" modules_install INSTALL_MOD_PATH="${KDIR}"/out/modules
+	make -j"$PROCS" "${MAKE[@]}" modules
+	make "${MAKE[@]}" INSTALL_MOD_PATH="${KDIR}"/out/modules modules_install
 	find "${KDIR}"/out/modules -type f -iname '*.ko' -exec cp {} "${KDIR}"/anykernel3-dragonheart/modules/system/lib/modules/ \;
 	echo -e "\n\e[1;32m[✓] Built Modules! \e[0m"
 }
