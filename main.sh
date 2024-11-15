@@ -119,7 +119,7 @@ elif [[ ${COMPILER} == clang ]]; then
 fi
 
 if [ ! -d "${KDIR}/anykernel3-dragonheart/" ]; then
-	git clone --depth=1 https://github.com/cyberknight777/anykernel3 -b op7 anykernel3-dragonheart
+	git clone --depth=1 https://github.com/cyberknight777/anykernel3 -b "${CODENAME}" anykernel3-dragonheart
 fi
 
 if [ ! -f "${KDIR}/version" ]; then
@@ -133,7 +133,7 @@ export KBUILD_BUILD_USER="cyberknight777"
 export KBUILD_BUILD_HOST="builder"
 VERSION=$(grep ver= version | cut -d= -f2)
 kver="${KBUILD_BUILD_VERSION}"
-zipn=DragonHeart-op7-"${VERSION}"
+zipn=DragonHeart-"${CODENAME}"-"${VERSION}"
 
 # A function to exit on SIGINT.
 exit_on_signal_SIGINT() {
