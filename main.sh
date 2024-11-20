@@ -238,6 +238,8 @@ mod() {
 	fi
 	rgn
 	echo -e "\n\e[1;93m[*] Building Modules! \e[0m"
+	rm -rf "${KDIR}"/out/modules
+	rm -rf "${KDIR}"/out/dist
 	mkdir -p "${KDIR}"/out/modules
 	mkdir -p "${KDIR}"/out/dist
 	make -j"$PROCS" "${MAKE[@]}" modules
