@@ -170,6 +170,7 @@ clean() {
 # A function to regenerate defconfig.
 rgn() {
 	echo -e "\n\e[1;93m[*] Regenerating defconfig! \e[0m"
+	mkdir -p "${KDIR}"/out/{dist,modules,kernel_uapi_headers/usr}
 	make "${MAKE[@]}" $CONFIG
 	cp -rf "${KDIR}"/out/.config "${KDIR}"/arch/arm64/configs/$CONFIG
 	echo -e "\n\e[1;32m[✓] Defconfig regenerated! \e[0m"
@@ -214,6 +215,9 @@ img() {
 			tg "*Kernel Built after $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)*"
 		fi
 		echo -e "\n\e[1;32m[✓] Kernel built after $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)! \e[0m"
+		echo -e "\n\e[1;93m[*] Copying built files! \e[0m"
+		cp -p "${KDIR}"/out/arch/arm64/boot/{Image,dtb.img,dtbo.img} "${KDIR}"/out/dist || exit 1
+		echo -e "\n\e[1;32m[✓] Copied built files! \e[0m"
 	else
 		if [[ ${TGI} == "1" ]]; then
 			tgs "log.txt" "*Build failed*"
@@ -229,6 +233,9 @@ dtb() {
 	echo -e "\n\e[1;93m[*] Building DTBS! \e[0m"
 	time make -j"$PROCS" "${MAKE[@]}" dtbs dtbo.img dtb.img
 	echo -e "\n\e[1;32m[✓] Built DTBS! \e[0m"
+	echo -e "\n\e[1;93m[*] Copying DTB files! \e[0m"
+	cp -p "${KDIR}"/out/arch/arm64/boot/{dtb,dtbo}.img "${KDIR}"/out/dist || exit 1
+	echo -e "\n\e[1;32m[✓] Copied DTB files! \e[0m"
 }
 
 # A function to build out-of-tree modules.
@@ -238,19 +245,16 @@ mod() {
 	fi
 	rgn
 	echo -e "\n\e[1;93m[*] Building Modules! \e[0m"
-	rm -rf "${KDIR}"/out/modules
-	rm -rf "${KDIR}"/out/dist
-	mkdir -p "${KDIR}"/out/modules
-	mkdir -p "${KDIR}"/out/dist
 	make -j"$PROCS" "${MAKE[@]}" modules
 	make "${MAKE[@]}" INSTALL_MOD_PATH="${KDIR}"/out/modules modules_install
 	find "${KDIR}"/out/modules -type f -iname '*.ko' -exec cp {} "${KDIR}"/anykernel3-dragonheart/modules/system/lib/modules/ \;
 	echo -e "\n\e[1;32m[✓] Built Modules! \e[0m"
-	echo "\n\e[1;93m[*] Copying modules files! \e[0m"
-	MODULES=$(find "${KDIR}"/out/modules -type f -name "*.ko")
-	for FILE in "${MODULES}"; do
-		cp -p "${FILE}" "${KDIR}"/out/dist
+	echo -e "\n\e[1;93m[*] Copying modules files! \e[0m"
+	MOD=$(find "${KDIR}"/out/modules -type f -name "*.ko")
+	for FILE in ${MOD}; do
+		cp -p "${FILE}" "${KDIR}"/out/dist || exit 1
 	done
+	echo -e "\n\e[1;32m[✓] Copied modules files! \e[0m"
 }
 
 # A function to build kernel UAPI headers.
@@ -265,6 +269,45 @@ hdr() {
 	find "${KDIR}"/out/kernel_uapi_headers '(' -name ..install.cmd -o -name .install ')' -exec rm '{}' +
 	tar -czf "${KDIR}"/out/kernel-uapi-headers.tar.gz --directory="${KDIR}"/out/kernel_uapi_headers usr/
 	echo -e "\n\e[1;32m[✓] Built UAPI Headers! \e[0m"
+	echo -e "\n\e[1;93m[*] Copying UAPI Headers! \e[0m"
+	cp -p "${KDIR}"/out/kernel-uapi-headers.tar.gz "${KDIR}"/out/dist || exit 1
+	echo -e "\n\e[1;32m[✓] Copied UAPI Headers! \e[0m"
+}
+
+# A function to copy built objects to prebuilt kernel tree.
+pre() {
+	if [[ ${TGI} == "1" ]]; then
+		tg "*Copying built objects to prebuilt kernel tree!*"
+	fi
+	echo -e "\n\e[1;93m[*] Copying built objects to prebuilt kernel tree! \e[0m"
+	git clone https://github.com/"${1}".git prebuilt || exit 1
+	cd prebuilt || exit 1
+	echo "https://cyberknight777:$PASSWORD@github.com" >.pwd
+	git config credential.helper "store --file .pwd"
+	cp -p "${KDIR}"/out/dist/{Image,dtb.img,dtbo.img} "${KDIR}"/prebuilt || exit 1
+	tar -xvf "${KDIR}"/out/dist/kernel-uapi-headers.tar.gz -C "${KDIR}"/prebuilt/kernel-headers || exit 1
+	for file in "${KDIR}"/prebuilt/modules/vendor_boot/*.ko; do
+		filename=$(basename "${file}")
+
+		if [ -e "${KDIR}/out/dist/${filename}" ]; then
+			cp -p "${KDIR}/out/dist/${filename}" "${KDIR}/prebuilt/modules/vendor_boot" || exit 1
+		fi
+	done
+	for file in "${KDIR}"/prebuilt/modules/vendor_dlkm/*.ko; do
+		filename=$(basename "${file}")
+
+		if [ -e "${KDIR}/out/dist/${filename}" ]; then
+			cp -p "${KDIR}/out/dist/${filename}" "${KDIR}/prebuilt/modules/vendor_dlkm" || exit 1
+		fi
+
+	done
+	git add Image dtb.img dtbo.img kernel-headers modules
+	git commit -s -m "kernel: Update prebuilts $(date -u '+%d%m%Y%I%M')" -m "- This is an auto-generated commit."
+	git commit --amend --reset-author --no-edit
+	git push
+	cd ../ || exit 1
+	rm -rf prebuilt
+	echo -e "\n\e[1;32m[✓] Copied built objects to prebuilt kernel tree! \e[0m"
 }
 
 # A function to build an AnyKernel3 zip.
@@ -274,9 +317,9 @@ mkzip() {
 	fi
 	echo -e "\n\e[1;93m[*] Building zip! \e[0m"
 	mkdir -p "${KDIR}"/anykernel3-dragonheart/dtbs
-	mv "${KDIR}"/out/arch/arm64/boot/dtbo.img "${KDIR}"/anykernel3-dragonheart
-	mv "${KDIR}"/out/arch/arm64/boot/dtb.img "${KDIR}"/anykernel3-dragonheart
-	mv "${KDIR}"/out/arch/arm64/boot/Image "${KDIR}"/anykernel3-dragonheart
+	cp "${KDIR}"/out/dist/dtbo.img "${KDIR}"/anykernel3-dragonheart
+	cp "${KDIR}"/out/dist/dtb.img "${KDIR}"/anykernel3-dragonheart
+	cp "${KDIR}"/out/dist/Image "${KDIR}"/anykernel3-dragonheart
 	cd "${KDIR}"/anykernel3-dragonheart || exit 1
 	zip -r9 "$zipn".zip . -x ".git*" -x "README.md" -x "LICENSE" -x "*.zip"
 	echo -e "\n\e[1;32m[✓] Built zip! \e[0m"
@@ -379,12 +422,14 @@ example: bash $0 mcfg img mkzip
 example: bash $0 --obj=drivers/android/binder.o
 example: bash $0 --obj=kernel/sched/
 example: bash $0 --upr=r16
+example: bash $0 --pre=YAAP/device_xiaomi_sunny-kernel
 
 	 mcfg   Runs make menuconfig
 	 img    Builds Kernel
 	 dtb    Builds dtb(o).img
 	 mod    Builds out-of-tree modules
 	 hdr	Builds kernel UAPI headers
+	 --pre	Copies built objects to prebuilt kernel tree
 	 mkzip  Builds anykernel3 zip
 	 --obj  Builds specific driver/subsystem
 	 rgn    Regenerates defconfig
@@ -404,13 +449,14 @@ ndialog() {
 		2 "Build DTBs"
 		3 "Build modules"
 		4 "Build kernel UAPI headers"
-		5 "Open menuconfig"
-		6 "Regenerate defconfig"
-		7 "Uprev localversion"
-		8 "Build AnyKernel3 zip"
-		9 "Build a specific object"
-		10 "Clean"
-		11 "Exit"
+		5 "Copy built objects to prebuilt kernel tree"
+		6 "Open menuconfig"
+		7 "Regenerate defconfig"
+		8 "Uprev localversion"
+		9 "Build AnyKernel3 zip"
+		10 "Build a specific object"
+		11 "Clean"
+		12 "Exit"
 	)
 	CHOICE=$(dialog --clear \
 		--backtitle "$BACKTITLE" \
@@ -470,8 +516,14 @@ ndialog() {
 		fi
 		;;
 	5)
+		dialog --inputbox --stdout "Enter prebuilt kernel repo: " 15 50 | tee .p
+		pr=$(cat .p)
+		if [ -z "$pr" ]; then
+			dialog --inputbox --stdout "Enter prebuilt kernel repo: " 15 50 | tee .p
+		fi
 		clear
-		mcfg
+		pre "$pr"
+		rm .p
 		echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
 		read -r a1
 		if [ "$a1" == "0" ]; then
@@ -483,7 +535,7 @@ ndialog() {
 		;;
 	6)
 		clear
-		rgn
+		mcfg
 		echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
 		read -r a1
 		if [ "$a1" == "0" ]; then
@@ -494,6 +546,18 @@ ndialog() {
 		fi
 		;;
 	7)
+		clear
+		rgn
+		echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
+		read -r a1
+		if [ "$a1" == "0" ]; then
+			exit 0
+		else
+			clear
+			ndialog
+		fi
+		;;
+	8)
 		dialog --inputbox --stdout "Enter version number: " 15 50 | tee .t
 		ver=$(cat .t)
 		clear
@@ -508,7 +572,7 @@ ndialog() {
 			ndialog
 		fi
 		;;
-	8)
+	9)
 		mkzip
 		echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
 		read -r a1
@@ -519,7 +583,7 @@ ndialog() {
 			ndialog
 		fi
 		;;
-	9)
+	10)
 		dialog --inputbox --stdout "Enter object path: " 15 50 | tee .f
 		ob=$(cat .f)
 		if [ -z "$ob" ]; then
@@ -537,7 +601,7 @@ ndialog() {
 			ndialog
 		fi
 		;;
-	10)
+	11)
 		clear
 		clean
 		img
@@ -550,7 +614,7 @@ ndialog() {
 			ndialog
 		fi
 		;;
-	11)
+	12)
 		echo -e "\n\e[1m Exiting YAKB...\e[0m"
 		sleep 3
 		exit 0
@@ -582,6 +646,15 @@ for arg in "$@"; do
 		;;
 	"hdr")
 		hdr
+		;;
+	"--pre="*)
+		preb="${arg#*=}"
+		if [[ -z $preb ]]; then
+			echo "Use --pre=YAAP/device_xiaomi_sunny-kernel"
+			exit 1
+		else
+			pre "$preb"
+		fi
 		;;
 	"mkzip")
 		mkzip
