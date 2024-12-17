@@ -425,10 +425,6 @@ upr() {
 	echo -e "\n\e[1;93m[*] Bumping localversion to -DragonHeart-${1}! \e[0m"
 	"${KDIR}"/scripts/config --file "${KDIR}"/arch/arm64/configs/$CONFIG --set-str CONFIG_LOCALVERSION "-DragonHeart-${1}"
 	rgn
-	if [ "${CI}" == "0" ]; then
-		git add arch/arm64/configs/$CONFIG
-		git commit -S -s -m "dragonheart_defconfig: Bump to \`${1}\`"
-	fi
 	echo -e "\n\e[1;32m[✓] Bumped localversion to -DragonHeart-${1}! \e[0m"
 }
 
