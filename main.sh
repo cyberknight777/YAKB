@@ -428,8 +428,8 @@ example: bash $0 --pre=YAAP/device_xiaomi_sunny-kernel
 	 img    Builds Kernel
 	 dtb    Builds dtb(o).img
 	 mod    Builds out-of-tree modules
-	 hdr	Builds kernel UAPI headers
-	 --pre	Copies built objects to prebuilt kernel tree
+	 hdr    Builds kernel UAPI headers
+	 --pre  Copies built objects to prebuilt kernel tree
 	 mkzip  Builds anykernel3 zip
 	 --obj  Builds specific driver/subsystem
 	 rgn    Regenerates defconfig
