@@ -19,9 +19,6 @@ export CONFIG=dragonheart_defconfig
 KDIR=$(pwd)
 export KDIR
 
-# Default linker to use for builds.
-export LINKER="ld.lld"
-
 # Device name.
 export DEVICE="OnePlus 7 Series"
 
@@ -41,6 +38,9 @@ export REPO_URL="https://github.com/cyberknight777/dragonheart_kernel_oneplus_sm
 # Commit hash of HEAD.
 COMMIT_HASH=$(git rev-parse --short HEAD)
 export COMMIT_HASH
+
+# Debug variable to exempt stripping debug symbols from modules.
+export DEBUG=0
 
 # Build status. Set 1 for release builds. | Set 0 for bleeding edge builds.
 if [ "${RELEASE}" == 1 ]; then
@@ -67,6 +67,10 @@ export COMPILER=clang
 GH_TOKEN="${PASSWORD}"
 export GH_TOKEN
 
+# Common directories setup.
+OUT_DIR="${KDIR}/out"
+DIST_DIR="${OUT_DIR}/dist"
+
 # Requirements
 if [ "${CI}" == 0 ]; then
 	if ! hash dialog make curl wget unzip find 2>/dev/null; then
@@ -76,22 +80,22 @@ if [ "${CI}" == 0 ]; then
 fi
 
 if [[ ${COMPILER} == gcc ]]; then
-	if [ ! -d "${KDIR}/gcc64" ]; then
-		git clone https://github.com/cyberknight777/gcc-arm64 --depth=1 gcc64
+	if [ ! -d "${KDIR}/${COMPILER}64" ]; then
+		git clone https://github.com/cyberknight777/gcc-arm64 --depth=1 ${COMPILER}64
 	fi
 
-	if [ ! -d "${KDIR}/gcc32" ]; then
-		git clone https://github.com/cyberknight777/gcc-arm --depth=1 gcc32
+	if [ ! -d "${KDIR}/${COMPILER}32" ]; then
+		git clone https://github.com/cyberknight777/gcc-arm --depth=1 ${COMPILER}32
 	fi
 
-	KBUILD_COMPILER_STRING=$("${KDIR}"/gcc64/bin/aarch64-elf-gcc --version | head -n 1)
+	KBUILD_COMPILER_STRING=$("${KDIR}"/${COMPILER}64/bin/aarch64-elf-gcc --version | head -n 1)
 	export KBUILD_COMPILER_STRING
-	export PATH="${KDIR}"/gcc32/bin:"${KDIR}"/gcc64/bin:/usr/bin/:${PATH}
+	export PATH="${KDIR}"/"${COMPILER}"32/bin:"${KDIR}"/"${COMPILER}"64/bin:/usr/bin/:"${PATH}"
 	MAKE+=(
-		O=out
+		O="${OUT_DIR}"
 		CROSS_COMPILE=aarch64-elf-
 		CROSS_COMPILE_ARM32=arm-eabi-
-		LD="${KDIR}"/gcc64/bin/aarch64-elf-"${LINKER}"
+		LD="${KDIR}"/"${COMPILER}"64/bin/aarch64-elf-"${LINKER}"
 		AR=aarch64-elf-ar
 		AS=aarch64-elf-as
 		NM=aarch64-elf-nm
@@ -99,23 +103,25 @@ if [[ ${COMPILER} == gcc ]]; then
 		OBJCOPY=aarch64-elf-objcopy
 		CC=aarch64-elf-gcc
 	)
+	LINKER="${KDIR}/${COMPILER}64/bin/aarch64-elf-ld"
 
 elif [[ ${COMPILER} == clang ]]; then
-	if [ ! -f "${KDIR}/neutron-clang/bin/clang" ]; then
-		rm -rf "${KDIR}"/neutron-clang
-		mkdir "${KDIR}"/neutron-clang
-		cd "${KDIR}"/neutron-clang || exit 1
+	if [ ! -f "${KDIR}/${COMPILER}/bin/${COMPILER}" ]; then
+		rm -rf "${KDIR:?}/${COMPILER}"
+		mkdir "${KDIR}"/"${COMPILER}"
+		cd "${KDIR}"/"${COMPILER}" || exit 1
 		bash <(curl -s "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman") -S
 		cd "${KDIR}" || exit 1
 	fi
 
-	KBUILD_COMPILER_STRING=$("${KDIR}"/neutron-clang/bin/clang -v 2>&1 | head -n 1 | sed 's/(https..*//' | sed 's/ version//')
+	KBUILD_COMPILER_STRING=$("${KDIR}"/"${COMPILER}"/bin/"${COMPILER}" -v 2>&1 | head -n 1 | sed 's/(https..*//' | sed 's/ version//')
 	export KBUILD_COMPILER_STRING
-	export PATH=$KDIR/neutron-clang/bin/:/usr/bin/:${PATH}
+	export PATH="${KDIR}"/"${COMPILER}"/bin/:/usr/bin/:"${PATH}"
 	MAKE+=(
-		O=out
+		O="${OUT_DIR}"
 		LLVM=1
 	)
+	LINKER="${KDIR}/${COMPILER}/bin/ld.lld"
 fi
 
 if [ ! -d "${KDIR}/anykernel3-dragonheart/" ]; then
@@ -163,16 +169,16 @@ tgs() {
 # A function to clean kernel source prior building.
 clean() {
 	echo -e "\n\e[1;93m[*] Cleaning source and out/ directory! \e[0m"
-	make clean && make mrproper && rm -rf "${KDIR}"/out
+	make clean && make mrproper && rm -rf "${OUT_DIR}"
 	echo -e "\n\e[1;32m[✓] Source cleaned and out/ removed! \e[0m"
 }
 
 # A function to regenerate defconfig.
 rgn() {
 	echo -e "\n\e[1;93m[*] Regenerating defconfig! \e[0m"
-	mkdir -p "${KDIR}"/out/{dist,modules,kernel_uapi_headers/usr}
-	make "${MAKE[@]}" $CONFIG
-	cp -rf "${KDIR}"/out/.config "${KDIR}"/arch/arm64/configs/$CONFIG
+	mkdir -p "${OUT_DIR}"/{dist,modules,kernel_uapi_headers/usr}
+	make "${MAKE[@]}" "${CONFIG}"
+	cp -rf "${OUT_DIR}"/.config "${KDIR}"/arch/arm64/configs/"${CONFIG}"
 	echo -e "\n\e[1;32m[✓] Defconfig regenerated! \e[0m"
 }
 
@@ -181,7 +187,7 @@ mcfg() {
 	rgn
 	echo -e "\n\e[1;93m[*] Making Menuconfig! \e[0m"
 	make "${MAKE[@]}" menuconfig
-	cp -rf "${KDIR}"/out/.config "${KDIR}"/arch/arm64/configs/$CONFIG
+	cp -rf "${OUT_DIR}"/.config "${KDIR}"/arch/arm64/configs/"${CONFIG}"
 	echo -e "\n\e[1;32m[✓] Saved Modifications! \e[0m"
 }
 
@@ -198,8 +204,7 @@ img() {
 *Date*: \`$(date)\`
 *Zip Name*: \`${zipn}\`
 *Compiler*: \`${KBUILD_COMPILER_STRING}\`
-*Linker*: \`$("${KDIR}"/neutron-clang/bin/${LINKER} -v | head -n1 | sed 's/(compatible with [^)]*)//' |
-			head -n 1 | perl -pe 's/\(http.*?\)//gs' | sed -e 's/  */ /g' -e 's/[[:space:]]*$//')\`
+*Linker*: \`$("${LINKER}" -v | sed 's/([^)]*)//g' | sed -e 's/  */ /g' -e 's/[[:space:]]*$//')\`
 *Branch*: \`$(git rev-parse --abbrev-ref HEAD)\`
 *Last Commit*: [${COMMIT_HASH}](${REPO_URL}/commit/${COMMIT_HASH})
 "
@@ -210,13 +215,13 @@ img() {
 	time make -j"$PROCS" "${MAKE[@]}" Image dtbo.img dtb.img 2>&1 | tee log.txt
 	BUILD_END=$(date +"%s")
 	DIFF=$((BUILD_END - BUILD_START))
-	if [ -f "${KDIR}/out/arch/arm64/boot/Image" ]; then
+	if [ -f "${OUT_DIR}/arch/arm64/boot/Image" ]; then
 		if [[ ${TGI} == "1" ]]; then
 			tg "*Kernel Built after $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)*"
 		fi
 		echo -e "\n\e[1;32m[✓] Kernel built after $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)! \e[0m"
 		echo -e "\n\e[1;93m[*] Copying built files! \e[0m"
-		cp -p "${KDIR}"/out/arch/arm64/boot/{Image,dtb.img,dtbo.img} "${KDIR}"/out/dist || exit 1
+		cp -p "${OUT_DIR}"/arch/arm64/boot/{Image,dtb.img,dtbo.img} "${DIST_DIR}"/ || exit 1
 		echo -e "\n\e[1;32m[✓] Copied built files! \e[0m"
 	else
 		if [[ ${TGI} == "1" ]]; then
@@ -234,7 +239,7 @@ dtb() {
 	time make -j"$PROCS" "${MAKE[@]}" dtbs dtbo.img dtb.img
 	echo -e "\n\e[1;32m[✓] Built DTBS! \e[0m"
 	echo -e "\n\e[1;93m[*] Copying DTB files! \e[0m"
-	cp -p "${KDIR}"/out/arch/arm64/boot/{dtb,dtbo}.img "${KDIR}"/out/dist || exit 1
+	cp -p "${OUT_DIR}"/arch/arm64/boot/{dtb,dtbo}.img "${DIST_DIR}"/ || exit 1
 	echo -e "\n\e[1;32m[✓] Copied DTB files! \e[0m"
 }
 
@@ -246,13 +251,22 @@ mod() {
 	rgn
 	echo -e "\n\e[1;93m[*] Building Modules! \e[0m"
 	make -j"$PROCS" "${MAKE[@]}" modules
-	make "${MAKE[@]}" INSTALL_MOD_PATH="${KDIR}"/out/modules modules_install
-	find "${KDIR}"/out/modules -type f -iname '*.ko' -exec cp {} "${KDIR}"/anykernel3-dragonheart/modules/system/lib/modules/ \;
+	make "${MAKE[@]}" INSTALL_MOD_PATH="${OUT_DIR}"/modules modules_install
+	find "${OUT_DIR}"/modules -type f -iname '*.ko' -exec cp {} "${KDIR}"/anykernel3-dragonheart/modules/system/lib/modules/ \;
 	echo -e "\n\e[1;32m[✓] Built Modules! \e[0m"
 	echo -e "\n\e[1;93m[*] Copying modules files! \e[0m"
-	MOD=$(find "${KDIR}"/out/modules -type f -name "*.ko")
+	MOD=$(find "${OUT_DIR}"/modules -type f -name "*.ko")
 	for FILE in ${MOD}; do
-		cp -p "${FILE}" "${KDIR}"/out/dist || exit 1
+		cp -p "${FILE}" "${DIST_DIR}"/ || exit 1
+		if [[ ${DEBUG} == "0" ]]; then
+			FILENAME=$(basename "${FILE}")
+			if [[ ${COMPILER} == clang ]]; then
+				OBJCOPY="${KDIR}"/"${COMPILER}"/bin/llvm-objcopy
+			elif [[ ${COMPILER} == gcc ]]; then
+				OBJCOPY="${KDIR}"/"${COMPILER}"/bin/aarch64-elf-objcopy
+			fi
+			"${OBJCOPY}" --strip-debug "${DIST_DIR}"/"${FILENAME}"
+		fi
 	done
 	echo -e "\n\e[1;32m[✓] Copied modules files! \e[0m"
 }
@@ -264,13 +278,13 @@ hdr() {
 	fi
 	rgn
 	echo -e "\n\e[1;93m[*] Building UAPI Headers! \e[0m"
-	mkdir -p "${KDIR}"/out/kernel_uapi_headers/usr
-	make -j"$PROCS" "${MAKE[@]}" INSTALL_HDR_PATH="${KDIR}"/out/kernel_uapi_headers/usr headers_install
-	find "${KDIR}"/out/kernel_uapi_headers '(' -name ..install.cmd -o -name .install ')' -exec rm '{}' +
-	tar -czf "${KDIR}"/out/kernel-uapi-headers.tar.gz --directory="${KDIR}"/out/kernel_uapi_headers usr/
+	mkdir -p "${OUT_DIR}"/kernel_uapi_headers/usr
+	make -j"$PROCS" "${MAKE[@]}" INSTALL_HDR_PATH="${OUT_DIR}"/kernel_uapi_headers/usr headers_install
+	find "${OUT_DIR}"/kernel_uapi_headers '(' -name ..install.cmd -o -name .install ')' -exec rm '{}' +
+	tar -czf "${OUT_DIR}"/kernel-uapi-headers.tar.gz --directory="${OUT_DIR}"/kernel_uapi_headers usr/
 	echo -e "\n\e[1;32m[✓] Built UAPI Headers! \e[0m"
 	echo -e "\n\e[1;93m[*] Copying UAPI Headers! \e[0m"
-	cp -p "${KDIR}"/out/kernel-uapi-headers.tar.gz "${KDIR}"/out/dist || exit 1
+	cp -p "${OUT_DIR}"/kernel-uapi-headers.tar.gz "${DIST_DIR}"/ || exit 1
 	echo -e "\n\e[1;32m[✓] Copied UAPI Headers! \e[0m"
 }
 
@@ -284,20 +298,20 @@ pre() {
 	cd prebuilt || exit 1
 	echo "https://cyberknight777:$PASSWORD@github.com" >.pwd
 	git config credential.helper "store --file .pwd"
-	cp -p "${KDIR}"/out/dist/{Image,dtb.img,dtbo.img} "${KDIR}"/prebuilt || exit 1
-	tar -xvf "${KDIR}"/out/dist/kernel-uapi-headers.tar.gz -C "${KDIR}"/prebuilt/kernel-headers || exit 1
+	cp -p "${DIST_DIR}"/{Image,dtb.img,dtbo.img} "${KDIR}"/prebuilt || exit 1
+	tar -xvf "${DIST_DIR}"/kernel-uapi-headers.tar.gz -C "${KDIR}"/prebuilt/kernel-headers || exit 1
 	for file in "${KDIR}"/prebuilt/modules/vendor_boot/*.ko; do
 		filename=$(basename "${file}")
 
-		if [ -e "${KDIR}/out/dist/${filename}" ]; then
-			cp -p "${KDIR}/out/dist/${filename}" "${KDIR}/prebuilt/modules/vendor_boot" || exit 1
+		if [ -e "${DIST_DIR}/${filename}" ]; then
+			cp -p "${DIST_DIR}/${filename}" "${KDIR}/prebuilt/modules/vendor_boot" || exit 1
 		fi
 	done
 	for file in "${KDIR}"/prebuilt/modules/vendor_dlkm/*.ko; do
 		filename=$(basename "${file}")
 
-		if [ -e "${KDIR}/out/dist/${filename}" ]; then
-			cp -p "${KDIR}/out/dist/${filename}" "${KDIR}/prebuilt/modules/vendor_dlkm" || exit 1
+		if [ -e "${DIST_DIR}/${filename}" ]; then
+			cp -p "${DIST_DIR}/${filename}" "${KDIR}/prebuilt/modules/vendor_dlkm" || exit 1
 		fi
 
 	done
@@ -337,10 +351,7 @@ mkzip() {
 		tg "*Building zip!*"
 	fi
 	echo -e "\n\e[1;93m[*] Building zip! \e[0m"
-	mkdir -p "${KDIR}"/anykernel3-dragonheart/dtbs
-	cp "${KDIR}"/out/dist/dtbo.img "${KDIR}"/anykernel3-dragonheart
-	cp "${KDIR}"/out/dist/dtb.img "${KDIR}"/anykernel3-dragonheart
-	cp "${KDIR}"/out/dist/Image "${KDIR}"/anykernel3-dragonheart
+	cp "${DIST_DIR}"/{Image,dtb.img,dtbo.img} "${KDIR}"/anykernel3-dragonheart
 	cd "${KDIR}"/anykernel3-dragonheart || exit 1
 	zip -r9 "$zipn".zip . -x ".git*" -x "README.md" -x "LICENSE" -x "*.zip"
 	echo -e "\n\e[1;32m[✓] Built zip! \e[0m"
@@ -357,11 +368,11 @@ mkzip() {
 {
   \"kernel\": {
   \"name\": \"DragonHeart\",
-  \"version\": \"$VERSION\",
-  \"link\": \"https://github.com/cyberknight777/op7_json/releases/download/$VERSION/$zipn.zip\",
+  \"version\": \"${VERSION}\",
+  \"link\": \"https://github.com/cyberknight777/op7_json/releases/download/${VERSION}/${zipn}.zip\",
   \"changelog_url\": \"https://raw.githubusercontent.com/cyberknight777/op7_json/master/changelog_r.md\",
-  \"date\": \"$DATE\",
-  \"sha1\": \"$sha1\"
+  \"date\": \"${DATE}\",
+  \"sha1\": \"${sha1}\"
   },
   \"support\": {
     \"link\": \"https://t.me/knightschat\"
@@ -369,10 +380,10 @@ mkzip() {
 }
 " >DragonHeart-r.json
 			git add DragonHeart-r.json changelog_r.md || exit 1
-			git commit -s -m "DragonHeart: Update $CODENAME to $VERSION release" -m "- This is a bleeding edge release."
+			git commit -s -m "DragonHeart: Update ${CODENAME} to ${VERSION} release" -m "- This is a bleeding edge release."
 			git commit --amend --reset-author --no-edit
 			git push
-			gh release create "${VERSION}" -t "DragonHeart for $CODENAME [BLEEDING EDGE] - $VERSION"
+			gh release create "${VERSION}" -t "DragonHeart for ${CODENAME} [BLEEDING EDGE] - ${VERSION}"
 			gh release upload "${VERSION}" ../"${zipn}.zip"
 		else
 			rm changelog.md
@@ -381,11 +392,11 @@ mkzip() {
 {
   \"kernel\": {
   \"name\": \"DragonHeart\",
-  \"version\": \"$VERSION\",
-  \"link\": \"https://github.com/cyberknight777/op7_json/releases/download/$VERSION/$zipn.zip\",
+  \"version\": \"${VERSION}\",
+  \"link\": \"https://github.com/cyberknight777/op7_json/releases/download/${VERSION}/${zipn}.zip\",
   \"changelog_url\": \"https://raw.githubusercontent.com/cyberknight777/op7_json/master/changelog.md\",
-  \"date\": \"$DATE\",
-  \"sha1\": \"$sha1\"
+  \"date\": \"${DATE}\",
+  \"sha1\": \"${sha1}\"
   },
   \"support\": {
     \"link\": \"https://t.me/knightschat\"
@@ -393,10 +404,10 @@ mkzip() {
 }
 " >DragonHeart-rc.json
 			git add DragonHeart-rc.json changelog.md || exit 1
-			git commit -s -m "DragonHeart: Update $CODENAME to $VERSION release" -m "- This is a stable release."
+			git commit -s -m "DragonHeart: Update ${CODENAME} to ${VERSION} release" -m "- This is a stable release."
 			git commit --amend --reset-author --no-edit
 			git push
-			gh release create "${VERSION}" -t "DragonHeart for $CODENAME [RELEASE] - $VERSION"
+			gh release create "${VERSION}" -t "DragonHeart for ${CODENAME} [RELEASE] - ${VERSION}"
 			gh release upload "${VERSION}" ../"${zipn}.zip"
 		fi
 		cd ../ || exit 1
@@ -405,7 +416,7 @@ mkzip() {
 	if [[ ${TGI} == "1" ]]; then
 		tgs "${zipn}.zip" "*#${kver} ${KBUILD_COMPILER_STRING}*"
 		tg "
-*Build*: https://github.com/cyberknight777/op7\_json/releases/download/$VERSION/$zipn.zip
+*Build*: https://github.com/cyberknight777/op7\_json/releases/download/${VERSION}/${zipn}.zip
 *Changelog*: https://github.com/cyberknight777/op7\_json/blob/master/changelog\_${re}.md
 *OTA*: https://raw.githubusercontent.com/cyberknight777/op7\_json/master/DragonHeart-${re}.json
 "
@@ -423,7 +434,7 @@ obj() {
 # A function to uprev localversion in defconfig.
 upr() {
 	echo -e "\n\e[1;93m[*] Bumping localversion to -DragonHeart-${1}! \e[0m"
-	"${KDIR}"/scripts/config --file "${KDIR}"/arch/arm64/configs/$CONFIG --set-str CONFIG_LOCALVERSION "-DragonHeart-${1}"
+	"${KDIR}"/scripts/config --file "${KDIR}"/arch/arm64/configs/"${CONFIG}" --set-str CONFIG_LOCALVERSION "-DragonHeart-${1}"
 	rgn
 	echo -e "\n\e[1;32m[✓] Bumped localversion to -DragonHeart-${1}! \e[0m"
 }
@@ -479,20 +490,20 @@ ndialog() {
 		13 "Exit"
 	)
 	CHOICE=$(dialog --clear \
-		--backtitle "$BACKTITLE" \
-		--title "$TITLE" \
-		--menu "$MENU" \
-		$HEIGHT $WIDTH $CHOICE_HEIGHT \
+		--backtitle "${BACKTITLE}" \
+		--title "${TITLE}" \
+		--menu "${MENU}" \
+		"${HEIGHT}" "${WIDTH}" "${CHOICE_HEIGHT}" \
 		"${OPTIONS[@]}" \
 		2>&1 >/dev/tty)
 	clear
-	case "$CHOICE" in
+	case "${CHOICE}" in
 	1)
 		clear
 		img
 		echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
 		read -r a1
-		if [ "$a1" == "0" ]; then
+		if [ "${a1}" == "0" ]; then
 			exit 0
 		else
 			clear
@@ -504,7 +515,7 @@ ndialog() {
 		dtb
 		echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
 		read -r a1
-		if [ "$a1" == "0" ]; then
+		if [ "${a1}" == "0" ]; then
 			exit 0
 		else
 			clear
@@ -516,7 +527,7 @@ ndialog() {
 		mod
 		echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
 		read -r a1
-		if [ "$a1" == "0" ]; then
+		if [ "${a1}" == "0" ]; then
 			exit 0
 		else
 			clear
@@ -528,7 +539,7 @@ ndialog() {
 		hdr
 		echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
 		read -r a1
-		if [ "$a1" == "0" ]; then
+		if [ "${a1}" == "0" ]; then
 			exit 0
 		else
 			clear
@@ -538,15 +549,15 @@ ndialog() {
 	5)
 		dialog --inputbox --stdout "Enter prebuilt kernel repo: " 15 50 | tee .p
 		pr=$(cat .p)
-		if [ -z "$pr" ]; then
+		if [ -z "${pr}" ]; then
 			dialog --inputbox --stdout "Enter prebuilt kernel repo: " 15 50 | tee .p
 		fi
 		clear
-		pre "$pr"
+		pre "${pr}"
 		rm .p
 		echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
 		read -r a1
-		if [ "$a1" == "0" ]; then
+		if [ "${a1}" == "0" ]; then
 			exit 0
 		else
 			clear
@@ -556,15 +567,15 @@ ndialog() {
 	6)
 		dialog --inputbox --stdout "Enter LTO mode (thin|full): " 15 50 | tee .l
 		pr=$(cat .l)
-		if [ -z "$lt" ]; then
+		if [ -z "${lt}" ]; then
 			dialog --inputbox --stdout "Enter LTO mode (thin|full): " 15 50 | tee .l
 		fi
 		clear
-		lto "$lt"
+		lto "${lt}"
 		rm .l
 		echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
 		read -r a1
-		if [ "$a1" == "0" ]; then
+		if [ "${a1}" == "0" ]; then
 			exit 0
 		else
 			clear
@@ -576,7 +587,7 @@ ndialog() {
 		mcfg
 		echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
 		read -r a1
-		if [ "$a1" == "0" ]; then
+		if [ "${a1}" == "0" ]; then
 			exit 0
 		else
 			clear
@@ -588,7 +599,7 @@ ndialog() {
 		rgn
 		echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
 		read -r a1
-		if [ "$a1" == "0" ]; then
+		if [ "${a1}" == "0" ]; then
 			exit 0
 		else
 			clear
@@ -599,11 +610,11 @@ ndialog() {
 		dialog --inputbox --stdout "Enter version number: " 15 50 | tee .t
 		ver=$(cat .t)
 		clear
-		upr "$ver"
+		upr "${ver}"
 		rm .t
 		echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
 		read -r a1
-		if [ "$a1" == "0" ]; then
+		if [ "${a1}" == "0" ]; then
 			exit 0
 		else
 			clear
@@ -614,7 +625,7 @@ ndialog() {
 		mkzip
 		echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
 		read -r a1
-		if [ "$a1" == "0" ]; then
+		if [ "${a1}" == "0" ]; then
 			exit 0
 		else
 			clear
@@ -624,15 +635,15 @@ ndialog() {
 	11)
 		dialog --inputbox --stdout "Enter object path: " 15 50 | tee .f
 		ob=$(cat .f)
-		if [ -z "$ob" ]; then
+		if [ -z "${ob}" ]; then
 			dialog --inputbox --stdout "Enter object path: " 15 50 | tee .f
 		fi
 		clear
-		obj "$ob"
+		obj "${ob}"
 		rm .f
 		echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
 		read -r a1
-		if [ "$a1" == "0" ]; then
+		if [ "${a1}" == "0" ]; then
 			exit 0
 		else
 			clear
@@ -645,7 +656,7 @@ ndialog() {
 		img
 		echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
 		read -r a1
-		if [ "$a1" == "0" ]; then
+		if [ "${a1}" == "0" ]; then
 			exit 0
 		else
 			clear
@@ -687,20 +698,20 @@ for arg in "$@"; do
 		;;
 	"--pre="*)
 		preb="${arg#*=}"
-		if [[ -z $preb ]]; then
+		if [[ -z ${preb} ]]; then
 			echo "Use --pre=YAAP/device_xiaomi_sunny-kernel"
 			exit 1
 		else
-			pre "$preb"
+			pre "${preb}"
 		fi
 		;;
 	"--lto="*)
 		ltom="${arg#*=}"
-		if [[ -z $ltom ]]; then
+		if [[ -z ${ltom} ]]; then
 			echo "Use --lto=(thin|full)"
 			exit 1
 		else
-			lto "$ltom"
+			lto "${ltom}"
 		fi
 		;;
 	"mkzip")
@@ -708,11 +719,11 @@ for arg in "$@"; do
 		;;
 	"--obj="*)
 		object="${arg#*=}"
-		if [[ -z $object ]]; then
+		if [[ -z ${object} ]]; then
 			echo "Use --obj=filename.o"
 			exit 1
 		else
-			obj "$object"
+			obj "${object}"
 		fi
 		;;
 	"rgn")
@@ -720,11 +731,11 @@ for arg in "$@"; do
 		;;
 	"--upr="*)
 		vers="${arg#*=}"
-		if [[ -z $vers ]]; then
+		if [[ -z ${vers} ]]; then
 			echo "Use --upr=version"
 			exit 1
 		else
-			upr "$vers"
+			upr "${vers}"
 		fi
 		;;
 	"clean")
