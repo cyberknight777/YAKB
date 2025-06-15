@@ -42,15 +42,17 @@ export COMMIT_HASH
 # Debug variable to exempt stripping debug symbols from modules.
 export DEBUG=0
 
-# Build status. Set 1 for release builds. | Set 0 for bleeding edge builds.
+# Build status & branch name for modules.load files. Set 1 for release builds. | Set 0 for bleeding edge builds.
 if [ "${RELEASE}" == 1 ]; then
 	export STATUS="Release"
 	export CHATID=-1002403811064
 	export re="rc"
+	export MOD_BRANCH="fifteen"
 else
 	export STATUS="Bleeding-Edge"
 	export CHATID=-1002207791864
 	export re="r"
+	export MOD_BRANCH="staging"
 fi
 
 # Telegram Information. Set 1 to enable. | Set 0 to disable.
@@ -71,6 +73,83 @@ export GH_TOKEN
 OUT_DIR="${KDIR}/out"
 DIST_DIR="${OUT_DIR}/dist"
 AK3="${KDIR}/anykernel3-dragonheart"
+
+# vendor_dlkm and vendor_ramdisk directories setup.
+DLKM_DIR="${OUT_DIR}/vendor_dlkm"
+VNDR_DIR="${OUT_DIR}/vendor_ramdisk"
+DEPMOD_DIR="lib/modules/0.0"
+DLKM_MODULES_DIR="vendor/lib/modules"
+VNDR_MODULES_DIR="lib/modules"
+DLKM_MODULES_DIR_FULL="${DLKM_DIR}/${DEPMOD_DIR}/${DLKM_MODULES_DIR}"
+VNDR_MODULES_DIR_FULL="${VNDR_DIR}/${DEPMOD_DIR}/${VNDR_MODULES_DIR}"
+DLKM_MODULES_LOAD="${DLKM_MODULES_DIR_FULL}/modules.load"
+VNDR_MODULES_LOAD="${VNDR_MODULES_DIR_FULL}/modules.load"
+
+# vendor_dlkm and vendor_ramdisk extra modules setup.
+VENDOR_DLKM_EXTRA=(
+	bq25980_mmi.ko
+	bt_drv_connac1x.ko
+	connfem.ko
+	fmradio_drv_mt6631_6635.ko
+	fpsensor_mtk_spi.ko
+	goodix_fps_tee.ko
+	gps_drv_stp.ko
+	gps_pwr.ko
+	ilitek_v3_mmi.ko
+	leds-gpio.ko
+	met_backlight_api.ko
+	met_emi_api.ko
+	met_gpu_adv_api.ko
+	met_gpu_api.ko
+	met_ipi_api.ko
+	met.ko
+	met_mcupm_api.ko
+	met_scmi_api.ko
+	met_sspm_api.ko
+	met_vcore_api.ko
+	mmi_decrete_charger_cp_qc3p.ko
+	mmi_info.ko
+	mmi_relay.ko
+	nova_0flash_mmi_v2.ko
+	nxp_ese.ko
+	nxp_i2c.ko
+	qpnp_adaptive_charge.ko
+	sec_nfc.ko
+	sensors_class.ko
+	sx937x_sar.ko
+	utags.ko
+	wlan_drv_gen4m_6855.ko
+	wmt_chrdev_wifi.ko
+	wmt_drv.ko
+)
+
+VENDOR_RAMDISK_EXTRA=(
+	clk-dbg-mt6855.ko
+	clk-disable-unused.ko
+	clk-fmeter-mt6855.ko
+	emi-mpu-hook-v1.ko
+	ilitek_v3_mmi.ko
+	mmi_info.ko
+	mmi_relay.ko
+	mtk_battery_oc_throttling.ko
+	mtk-cqdma.ko
+	mtk_dynamic_loading_throttling.ko
+	mtk_low_battery_throttling.ko
+	mtk-mbox.ko
+	mtk_mdpm.ko
+	mtk_pbm.ko
+	mtk-pm-domain-disable-unused.ko
+	mtk_rpmsg_mbox.ko
+	mtk_tinysys_ipi.ko
+	nova_0flash_mmi_v2.ko
+	reboot-mode.ko
+	sec.ko
+	sensors_class.ko
+	spmi-mtk-mpu.ko
+	syscon-reboot-mode.ko
+	zram.ko
+	zsmalloc.ko
+)
 
 # Requirements
 if [ "${CI}" == 0 ]; then
@@ -258,6 +337,54 @@ dtb() {
 	echo -e "\n\e[1;32m[✓] Copied DTB files! \e[0m"
 }
 
+# A sub-function to generate AOSP-compatible vendor_ramdisk fragment and vendor_dlkm modules.
+_depmod() {
+	if [[ ${TGI} == "1" ]]; then
+		tg "*Generating AOSP-compatible archives for modules!*"
+	fi
+	rgn
+
+	echo -e "\n\e[1;93m[*] Setting up modules.load! \e[0m"
+	mkdir -p "${DLKM_MODULES_DIR_FULL}" "${VNDR_MODULES_DIR_FULL}"
+	curl -sL https://github.com/yaap/device_motorola_cancunf/raw/"${MOD_BRANCH}"/modules/modules.load.vendor_dlkm -o "${DLKM_MODULES_LOAD}" || exit 1
+	curl -sL https://github.com/yaap/device_motorola_cancunf/raw/"${MOD_BRANCH}"/modules/modules.load.vendor_boot -o "${VNDR_MODULES_LOAD}" || exit 1
+	echo -e "\n\e[1;32m[✓] Set up modules.load! \e[0m"
+
+	echo -e "\n\e[1;93m[*] Copying modules to respective modules directories by following modules.load! \e[0m"
+	while IFS= read -r modname; do
+		cp -p "${DIST_DIR}"/"${modname}" "${DLKM_MODULES_DIR_FULL}"/ || exit 1
+	done <"${DLKM_MODULES_LOAD}"
+
+	while IFS= read -r modname; do
+		cp -p "${DIST_DIR}"/"${modname}" "${VNDR_MODULES_DIR_FULL}"/ || exit 1
+	done <"${VNDR_MODULES_LOAD}"
+	echo -e "\n\e[1;32m[✓] Copied modules to respective modules directories by following modules.load! \e[0m"
+
+	echo -e "\n\e[1;93m[*] Copying modules to respective modules directories by following the pre-determined array! \e[0m"
+	for mod in "${VENDOR_DLKM_EXTRA[@]}"; do
+		cp -p "${DIST_DIR}"/"${mod}" "${DLKM_MODULES_DIR_FULL}"/ || exit 1
+	done
+
+	for mod in "${VENDOR_RAMDISK_EXTRA[@]}"; do
+		cp -p "${DIST_DIR}"/"${mod}" "${VNDR_MODULES_DIR_FULL}"/ || exit 1
+	done
+	echo -e "\n\e[1;32m[✓] Copied modules to respective modules directories by following the pre-determined array! \e[0m"
+
+	echo -e "\n\e[1;93m[*] Performing depmod and creating a XZ-compressed tarball for vendor_dlkm modules! \e[0m"
+	depmod -b "${DLKM_DIR}" 0.0 || exit 1
+	cp -p "${DLKM_DIR}"/"${DEPMOD_DIR}"/modules.{alias,dep,softdep} "${DLKM_MODULES_DIR_FULL}"/ || exit 1
+	sed -i -e 's|\([^: ]*lib/modules/[^: ]*\)|/\1|g' "${DLKM_MODULES_DIR_FULL}"/modules.dep || exit 1
+	tar -cvpf - -C "${DLKM_DIR}/${DEPMOD_DIR}/vendor" lib/ | xz -9e -T0 >"${KDIR}/anykernel3-dragonheart/modules/dlkm.tar.xz" || exit 1
+	echo -e "\n\e[1;32m[✓] Performed depmod and created a XZ-compressed tarball for vendor_dlkm modules! \e[0m"
+
+	echo -e "\n\e[1;93m[*] Performing depmod and creating a LZ4-compressed CPIO archive for vendor_ramdisk modules! \e[0m"
+	depmod -b "${VNDR_DIR}" 0.0 || exit 1
+	cp -p "${VNDR_DIR}"/"${DEPMOD_DIR}"/modules.{alias,dep,softdep} "${VNDR_MODULES_DIR_FULL}"/ || exit 1
+	sed -i -e 's|\([^: ]*lib/modules/[^: ]*\)|/\1|g' "${VNDR_MODULES_DIR_FULL}"/modules.dep || exit 1
+	find "${VNDR_DIR}"/"${DEPMOD_DIR}"/lib | sort | sed "s|^${VNDR_DIR}/${DEPMOD_DIR}/||" | (cd "${VNDR_DIR}"/"${DEPMOD_DIR}" && cpio -o -H newc) | lz4 -l -12 --favor-decSpeed >"${KDIR}/anykernel3-dragonheart/modules/dlkm.cpio.lz4" || exit 1
+	echo -e "\n\e[1;32m[✓] Performed depmod and created a LZ4-compressed CPIO archive for vendor_ramdisk modules! \e[0m"
+}
+
 # A function to build out-of-tree modules.
 mod() {
 	if [[ ${TGI} == "1" ]]; then
@@ -267,7 +394,6 @@ mod() {
 	echo -e "\n\e[1;93m[*] Building Modules! \e[0m"
 	make -j"$PROCS" "${MAKE[@]}" modules || exit 1
 	make "${MAKE[@]}" INSTALL_MOD_PATH="${OUT_DIR}"/modules modules_install || exit 1
-	find "${OUT_DIR}"/modules -type f -iname '*.ko' -exec cp {} "${AK3}"/modules/system/lib/modules/ \; || exit 1
 	echo -e "\n\e[1;32m[✓] Built Modules! \e[0m"
 	echo -e "\n\e[1;93m[*] Copying modules files! \e[0m"
 	MOD=$(find "${OUT_DIR}"/modules -type f -name "*.ko")
@@ -284,6 +410,7 @@ mod() {
 		fi
 	done
 	echo -e "\n\e[1;32m[✓] Copied modules files! \e[0m"
+	_depmod
 }
 
 # A function to build kernel UAPI headers.
