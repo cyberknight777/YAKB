@@ -70,6 +70,7 @@ export GH_TOKEN
 # Common directories setup.
 OUT_DIR="${KDIR}/out"
 DIST_DIR="${OUT_DIR}/dist"
+AK3="${KDIR}/anykernel3-dragonheart"
 
 # Requirements
 if [ "${CI}" == 0 ]; then
@@ -81,11 +82,11 @@ fi
 
 if [[ ${COMPILER} == gcc ]]; then
 	if [ ! -d "${KDIR}/${COMPILER}64" ]; then
-		git clone https://github.com/cyberknight777/gcc-arm64 --depth=1 ${COMPILER}64
+		git clone https://github.com/cyberknight777/gcc-arm64 --depth=1 ${COMPILER}64 || exit 1
 	fi
 
 	if [ ! -d "${KDIR}/${COMPILER}32" ]; then
-		git clone https://github.com/cyberknight777/gcc-arm --depth=1 ${COMPILER}32
+		git clone https://github.com/cyberknight777/gcc-arm --depth=1 ${COMPILER}32 || exit 1
 	fi
 
 	KBUILD_COMPILER_STRING=$("${KDIR}"/${COMPILER}64/bin/aarch64-elf-gcc --version | head -n 1)
@@ -107,10 +108,10 @@ if [[ ${COMPILER} == gcc ]]; then
 
 elif [[ ${COMPILER} == clang ]]; then
 	if [ ! -f "${KDIR}/${COMPILER}/bin/${COMPILER}" ]; then
-		rm -rf "${KDIR:?}/${COMPILER}"
-		mkdir "${KDIR}"/"${COMPILER}"
+		rm -rf "${KDIR:?}/${COMPILER}" || exit 1
+		mkdir "${KDIR}"/"${COMPILER}" || exit 1
 		cd "${KDIR}"/"${COMPILER}" || exit 1
-		bash <(curl -s "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman") -S
+		bash <(curl -s "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman") -S || exit 1
 		cd "${KDIR}" || exit 1
 	fi
 
@@ -124,8 +125,8 @@ elif [[ ${COMPILER} == clang ]]; then
 	LINKER="${KDIR}/${COMPILER}/bin/ld.lld"
 fi
 
-if [ ! -d "${KDIR}/anykernel3-dragonheart/" ]; then
-	git clone --depth=1 https://github.com/cyberknight777/anykernel3 -b "${CODENAME}" anykernel3-dragonheart
+if [ ! -d "${AK3}" ]; then
+	git clone --depth=1 https://github.com/cyberknight777/anykernel3 -b "${CODENAME}" "${AK3}" || exit 1
 fi
 
 if [ ! -f "${KDIR}/version" ]; then
@@ -150,35 +151,52 @@ trap exit_on_signal_SIGINT SIGINT
 
 # A function to send message(s) via Telegram's BOT api.
 tg() {
-	curl -sX POST https://api.telegram.org/bot"${TOKEN}"/sendMessage \
+	local response
+	response=$(curl -sX POST https://api.telegram.org/bot"${TOKEN}"/sendMessage \
 		-d chat_id="${CHATID}" \
 		-d parse_mode=Markdown \
 		-d disable_web_page_preview=true \
-		-d text="$1" &>/dev/null
+		-d text="$1")
+
+	if ! echo "$response" | grep -q '"ok":true'; then
+		local err
+		err=$(echo "$response" | sed -n 's/.*"description":"\([^"]*\)".*/\1/p')
+		echo -e "\n\e[1;31m[✗] tg(): Failed to send message: ${err:-Unknown error}\e[0m" >&2
+		exit 1
+	fi
 }
 
 # A function to send file(s) via Telegram's BOT api.
 tgs() {
+	local MD5 response
 	MD5=$(md5sum "$1" | cut -d' ' -f1)
-	curl -fsSL -X POST -F document=@"$1" https://api.telegram.org/bot"${TOKEN}"/sendDocument \
+
+	response=$(curl -sX POST -F document=@"$1" https://api.telegram.org/bot"${TOKEN}"/sendDocument \
 		-F "chat_id=${CHATID}" \
 		-F "parse_mode=Markdown" \
-		-F "caption=$2 | *MD5*: \`$MD5\`"
+		-F "caption=$2 | *MD5*: \`$MD5\`")
+
+	if ! echo "$response" | grep -q '"ok":true'; then
+		local err
+		err=$(echo "$response" | sed -n 's/.*"description":"\([^"]*\)".*/\1/p')
+		echo -e "\n\e[1;31m[✗] tgs(): Failed to send file '$1': ${err:-Unknown error}\e[0m" >&2
+		exit 1
+	fi
 }
 
 # A function to clean kernel source prior building.
 clean() {
 	echo -e "\n\e[1;93m[*] Cleaning source and out/ directory! \e[0m"
-	make clean && make mrproper && rm -rf "${OUT_DIR}"
+	make clean && make mrproper && rm -rf "${OUT_DIR}" || exit 1
 	echo -e "\n\e[1;32m[✓] Source cleaned and out/ removed! \e[0m"
 }
 
 # A function to regenerate defconfig.
 rgn() {
 	echo -e "\n\e[1;93m[*] Regenerating defconfig! \e[0m"
-	mkdir -p "${OUT_DIR}"/{dist,modules,kernel_uapi_headers/usr}
-	make "${MAKE[@]}" "${CONFIG}"
-	cp -rf "${OUT_DIR}"/.config "${KDIR}"/arch/arm64/configs/"${CONFIG}"
+	mkdir -p "${OUT_DIR}"/{dist,modules,kernel_uapi_headers/usr} || exit 1
+	make "${MAKE[@]}" "${CONFIG}" || exit 1
+	cp -rf "${OUT_DIR}"/.config "${KDIR}"/arch/arm64/configs/"${CONFIG}" || exit 1
 	echo -e "\n\e[1;32m[✓] Defconfig regenerated! \e[0m"
 }
 
@@ -186,8 +204,8 @@ rgn() {
 mcfg() {
 	rgn
 	echo -e "\n\e[1;93m[*] Making Menuconfig! \e[0m"
-	make "${MAKE[@]}" menuconfig
-	cp -rf "${OUT_DIR}"/.config "${KDIR}"/arch/arm64/configs/"${CONFIG}"
+	make "${MAKE[@]}" menuconfig || exit 1
+	cp -rf "${OUT_DIR}"/.config "${KDIR}"/arch/arm64/configs/"${CONFIG}" || exit 1
 	echo -e "\n\e[1;32m[✓] Saved Modifications! \e[0m"
 }
 
@@ -236,7 +254,7 @@ img() {
 dtb() {
 	rgn
 	echo -e "\n\e[1;93m[*] Building DTBS! \e[0m"
-	time make -j"$PROCS" "${MAKE[@]}" dtbs dtbo.img dtb.img
+	time make -j"$PROCS" "${MAKE[@]}" dtbs dtbo.img dtb.img || exit 1
 	echo -e "\n\e[1;32m[✓] Built DTBS! \e[0m"
 	echo -e "\n\e[1;93m[*] Copying DTB files! \e[0m"
 	cp -p "${OUT_DIR}"/arch/arm64/boot/{dtb,dtbo}.img "${DIST_DIR}"/ || exit 1
@@ -250,9 +268,9 @@ mod() {
 	fi
 	rgn
 	echo -e "\n\e[1;93m[*] Building Modules! \e[0m"
-	make -j"$PROCS" "${MAKE[@]}" modules
-	make "${MAKE[@]}" INSTALL_MOD_PATH="${OUT_DIR}"/modules modules_install
-	find "${OUT_DIR}"/modules -type f -iname '*.ko' -exec cp {} "${KDIR}"/anykernel3-dragonheart/modules/system/lib/modules/ \;
+	make -j"$PROCS" "${MAKE[@]}" modules || exit 1
+	make "${MAKE[@]}" INSTALL_MOD_PATH="${OUT_DIR}"/modules modules_install || exit 1
+	find "${OUT_DIR}"/modules -type f -iname '*.ko' -exec cp {} "${AK3}"/modules/system/lib/modules/ \; || exit 1
 	echo -e "\n\e[1;32m[✓] Built Modules! \e[0m"
 	echo -e "\n\e[1;93m[*] Copying modules files! \e[0m"
 	MOD=$(find "${OUT_DIR}"/modules -type f -name "*.ko")
@@ -265,7 +283,7 @@ mod() {
 			elif [[ ${COMPILER} == gcc ]]; then
 				OBJCOPY="${KDIR}"/"${COMPILER}"/bin/aarch64-elf-objcopy
 			fi
-			"${OBJCOPY}" --strip-debug "${DIST_DIR}"/"${FILENAME}"
+			"${OBJCOPY}" --strip-debug "${DIST_DIR}"/"${FILENAME}" || exit 1
 		fi
 	done
 	echo -e "\n\e[1;32m[✓] Copied modules files! \e[0m"
@@ -278,10 +296,10 @@ hdr() {
 	fi
 	rgn
 	echo -e "\n\e[1;93m[*] Building UAPI Headers! \e[0m"
-	mkdir -p "${OUT_DIR}"/kernel_uapi_headers/usr
-	make -j"$PROCS" "${MAKE[@]}" INSTALL_HDR_PATH="${OUT_DIR}"/kernel_uapi_headers/usr headers_install
+	mkdir -p "${OUT_DIR}"/kernel_uapi_headers/usr || exit 1
+	make -j"$PROCS" "${MAKE[@]}" INSTALL_HDR_PATH="${OUT_DIR}"/kernel_uapi_headers/usr headers_install || exit 1
 	find "${OUT_DIR}"/kernel_uapi_headers '(' -name ..install.cmd -o -name .install ')' -exec rm '{}' +
-	tar -czf "${OUT_DIR}"/kernel-uapi-headers.tar.gz --directory="${OUT_DIR}"/kernel_uapi_headers usr/
+	tar -czf "${OUT_DIR}"/kernel-uapi-headers.tar.gz --directory="${OUT_DIR}"/kernel_uapi_headers usr/ || exit 1
 	echo -e "\n\e[1;32m[✓] Built UAPI Headers! \e[0m"
 	echo -e "\n\e[1;93m[*] Copying UAPI Headers! \e[0m"
 	cp -p "${OUT_DIR}"/kernel-uapi-headers.tar.gz "${DIST_DIR}"/ || exit 1
@@ -290,37 +308,38 @@ hdr() {
 
 # A function to copy built objects to prebuilt kernel tree.
 pre() {
+	local preb="${KDIR}/prebuilt"
 	if [[ ${TGI} == "1" ]]; then
 		tg "*Copying built objects to prebuilt kernel tree!*"
 	fi
 	echo -e "\n\e[1;93m[*] Copying built objects to prebuilt kernel tree! \e[0m"
-	git clone https://github.com/"${1}".git prebuilt || exit 1
-	cd prebuilt || exit 1
-	echo "https://cyberknight777:$PASSWORD@github.com" >.pwd
-	git config credential.helper "store --file .pwd"
-	cp -p "${DIST_DIR}"/{Image,dtb.img,dtbo.img} "${KDIR}"/prebuilt || exit 1
-	tar -xvf "${DIST_DIR}"/kernel-uapi-headers.tar.gz -C "${KDIR}"/prebuilt/kernel-headers || exit 1
-	for file in "${KDIR}"/prebuilt/modules/vendor_boot/*.ko; do
+	git clone https://github.com/"${1}".git "${preb}" || exit 1
+	cd "${preb}" || exit 1
+	echo "https://cyberknight777:$PASSWORD@github.com" >"${preb}"/.pwd
+	git config credential.helper "store --file ${preb}/.pwd" || exit 1
+	cp -p "${DIST_DIR}"/{Image,dtb.img,dtbo.img} "${preb}"/ || exit 1
+	tar -xvf "${DIST_DIR}"/kernel-uapi-headers.tar.gz -C "${preb}"/kernel-headers/ || exit 1
+	for file in "${preb}"/modules/vendor_boot/*.ko; do
 		filename=$(basename "${file}")
 
 		if [ -e "${DIST_DIR}/${filename}" ]; then
-			cp -p "${DIST_DIR}/${filename}" "${KDIR}/prebuilt/modules/vendor_boot" || exit 1
+			cp -p "${DIST_DIR}/${filename}" "${preb}/modules/vendor_boot/" || exit 1
 		fi
 	done
-	for file in "${KDIR}"/prebuilt/modules/vendor_dlkm/*.ko; do
+	for file in "${preb}"/modules/vendor_dlkm/*.ko; do
 		filename=$(basename "${file}")
 
 		if [ -e "${DIST_DIR}/${filename}" ]; then
-			cp -p "${DIST_DIR}/${filename}" "${KDIR}/prebuilt/modules/vendor_dlkm" || exit 1
+			cp -p "${DIST_DIR}/${filename}" "${preb}/modules/vendor_dlkm/" || exit 1
 		fi
 
 	done
-	git add Image dtb.img dtbo.img kernel-headers modules
-	git commit -s -m "kernel: Update prebuilts $(date -u '+%d%m%Y%I%M')" -m "- This is an auto-generated commit."
-	git commit --amend --reset-author --no-edit
-	git push
-	cd ../ || exit 1
-	rm -rf prebuilt
+	git add "${preb}"/{Image,dtb.img,dtbo.img,kernel-headers,modules} || exit 1
+	git commit -s -m "kernel: Update prebuilts $(date -u '+%d%m%Y%I%M')" -m "- This is an auto-generated commit." || exit 1
+	git commit --amend --reset-author --no-edit || exit 1
+	git push || exit 1
+	cd "${KDIR}" || exit 1
+	rm -rf "${preb}" | exit 1
 	echo -e "\n\e[1;32m[✓] Copied built objects to prebuilt kernel tree! \e[0m"
 }
 
@@ -332,11 +351,11 @@ lto() {
 	if [[ ${1} == "full" ]]; then
 		"${KDIR}"/scripts/config --file "${KDIR}"/arch/arm64/configs/"${CONFIG}" \
 			-e LTO_CLANG_FULL \
-			-d LTO_CLANG_THIN
+			-d LTO_CLANG_THIN || exit 1
 	elif [[ ${1} == "thin" ]]; then
 		"${KDIR}"/scripts/config --file "${KDIR}"/arch/arm64/configs/"${CONFIG}" \
 			-d LTO_CLANG_FULL \
-			-e LTO_CLANG_THIN
+			-e LTO_CLANG_THIN || exit 1
 	else
 		echo -e "\n\e[1;31m[✗] Incorrect LTO mode set! \e[0m"
 		exit 1
@@ -351,19 +370,20 @@ mkzip() {
 		tg "*Building zip!*"
 	fi
 	echo -e "\n\e[1;93m[*] Building zip! \e[0m"
-	cp "${DIST_DIR}"/{Image,dtb.img,dtbo.img} "${KDIR}"/anykernel3-dragonheart
-	cd "${KDIR}"/anykernel3-dragonheart || exit 1
-	zip -r9 "$zipn".zip . -x ".git*" -x "README.md" -x "LICENSE" -x "*.zip"
+	cp -p "${DIST_DIR}"/{Image,dtb.img,dtbo.img} "${AK3}"/ || exit 1
+	cd "${AK3}" || exit 1
+	zip -r9 "$zipn".zip . -x ".git*" -x "README.md" -x "LICENSE" -x "*.zip" || exit 1
 	echo -e "\n\e[1;32m[✓] Built zip! \e[0m"
 	if [[ ${OTA} == "1" ]]; then
-		git clone https://github.com/cyberknight777/op7_json.git
-		cd op7_json || exit 1
-		echo "https://cyberknight777:$PASSWORD@github.com" >.pwd
-		git config credential.helper "store --file .pwd"
-		sha1=$(sha1sum ../"${zipn}".zip | cut -d ' ' -f1)
+		local ota="${AK3}/ota"
+		git clone https://github.com/cyberknight777/op7_json.git "${ota}" || exit 1
+		cd "${ota}" || exit 1
+		echo "https://cyberknight777:$PASSWORD@github.com" >"${ota}"/.pwd
+		git config credential.helper "store --file ${ota}/.pwd" || exit 1
+		sha1=$(sha1sum "${AK3}"/"${zipn}".zip | cut -d ' ' -f1)
 		if [[ ${RELEASE} != "1" ]]; then
-			rm changelog_r.md
-			wget "${CL_LINK}/raw" -O changelog_r.md
+			rm "${ota}"/changelog_r.md || exit 1
+			wget "${CL_LINK}/raw" -O "${ota}"/changelog_r.md || exit 1
 			echo "
 {
   \"kernel\": {
@@ -378,16 +398,16 @@ mkzip() {
     \"link\": \"https://t.me/knightschat\"
   }
 }
-" >DragonHeart-r.json
-			git add DragonHeart-r.json changelog_r.md || exit 1
-			git commit -s -m "DragonHeart: Update ${CODENAME} to ${VERSION} release" -m "- This is a bleeding edge release."
-			git commit --amend --reset-author --no-edit
-			git push
-			gh release create "${VERSION}" -t "DragonHeart for ${CODENAME} [BLEEDING EDGE] - ${VERSION}"
-			gh release upload "${VERSION}" ../"${zipn}.zip"
+" >"${ota}"/DragonHeart-r.json
+			git add "${ota}"/DragonHeart-r.json "${ota}"/changelog_r.md || exit 1
+			git commit -s -m "DragonHeart: Update ${CODENAME} to ${VERSION} release" -m "- This is a bleeding edge release." || exit 1
+			git commit --amend --reset-author --no-edit || exit 1
+			git push || exit 1
+			gh release create "${VERSION}" -t "DragonHeart for ${CODENAME} [BLEEDING EDGE] - ${VERSION}" || exit 1
+			gh release upload "${VERSION}" "${AK3}"/"${zipn}.zip" || exit 1
 		else
-			rm changelog.md
-			wget "${CL_LINK}"/raw -O changelog.md
+			rm "${ota}"/changelog.md || exit 1
+			wget "${CL_LINK}"/raw -O "${ota}"/changelog.md || exit 1
 			echo "
 {
   \"kernel\": {
@@ -402,19 +422,19 @@ mkzip() {
     \"link\": \"https://t.me/knightschat\"
   }
 }
-" >DragonHeart-rc.json
-			git add DragonHeart-rc.json changelog.md || exit 1
-			git commit -s -m "DragonHeart: Update ${CODENAME} to ${VERSION} release" -m "- This is a stable release."
-			git commit --amend --reset-author --no-edit
-			git push
-			gh release create "${VERSION}" -t "DragonHeart for ${CODENAME} [RELEASE] - ${VERSION}"
-			gh release upload "${VERSION}" ../"${zipn}.zip"
+" >"${ota}"/DragonHeart-rc.json
+			git add "${ota}"/DragonHeart-rc.json "${ota}"/changelog.md || exit 1
+			git commit -s -m "DragonHeart: Update ${CODENAME} to ${VERSION} release" -m "- This is a stable release." || exit 1
+			git commit --amend --reset-author --no-edit || exit 1
+			git push || exit 1
+			gh release create "${VERSION}" -t "DragonHeart for ${CODENAME} [RELEASE] - ${VERSION}" || exit 1
+			gh release upload "${VERSION}" "${AK3}"/"${zipn}.zip" || exit 1
 		fi
-		cd ../ || exit 1
-		rm -rf op7_json || exit 1
+		cd "${KDIR}" || exit 1
+		rm -rf "${ota}" || exit 1
 	fi
 	if [[ ${TGI} == "1" ]]; then
-		tgs "${zipn}.zip" "*#${kver} ${KBUILD_COMPILER_STRING}*"
+		tgs "${AK3}/${zipn}.zip" "*#${kver} ${KBUILD_COMPILER_STRING}*"
 		tg "
 *Build*: https://github.com/cyberknight777/op7\_json/releases/download/${VERSION}/${zipn}.zip
 *Changelog*: https://github.com/cyberknight777/op7\_json/blob/master/changelog\_${re}.md
@@ -427,14 +447,14 @@ mkzip() {
 obj() {
 	rgn
 	echo -e "\n\e[1;93m[*] Building ${1}! \e[0m"
-	time make -j"$PROCS" "${MAKE[@]}" "$1"
+	time make -j"$PROCS" "${MAKE[@]}" "$1" || exit 1
 	echo -e "\n\e[1;32m[✓] Built ${1}! \e[0m"
 }
 
 # A function to uprev localversion in defconfig.
 upr() {
 	echo -e "\n\e[1;93m[*] Bumping localversion to -DragonHeart-${1}! \e[0m"
-	"${KDIR}"/scripts/config --file "${KDIR}"/arch/arm64/configs/"${CONFIG}" --set-str CONFIG_LOCALVERSION "-DragonHeart-${1}"
+	"${KDIR}"/scripts/config --file "${KDIR}"/arch/arm64/configs/"${CONFIG}" --set-str CONFIG_LOCALVERSION "-DragonHeart-${1}" || exit 1
 	rgn
 	echo -e "\n\e[1;32m[✓] Bumped localversion to -DragonHeart-${1}! \e[0m"
 }
