@@ -370,9 +370,32 @@ _depmod() {
 	done
 	echo -e "\n\e[1;32m[✓] Copied modules to respective modules directories by following the pre-determined array! \e[0m"
 
+	echo -e "\n\e[1;93m[*] Generating fs_config and file_contexts for vendor_dlkm modules! \e[0m"
+	cat <<EOF >"${AK3}"/config/vendor_dlkm_fs_config || exit 1
+/ 0 0 0755
+vendor_dlkm/ 0 0 0755
+vendor_dlkm/lost+found 0 0 0755
+vendor_dlkm/etc 0 0 0755
+vendor_dlkm/etc/NOTICE.xml.gz 0 0 0644
+vendor_dlkm/etc/build.prop 0 0 0644
+vendor_dlkm/etc/fs_config_dirs 0 0 0644
+vendor_dlkm/etc/fs_config_files 0 0 0644
+vendor_dlkm/lib 0 0 0755
+vendor_dlkm/lib/modules 0 0 0755
+EOF
+	cat <<EOF >"${AK3}"/config/vendor_dlkm_file_contexts || exit 1
+/ u:object_r:vendor_file:s0
+/vendor_dlkm(/.*)? u:object_r:vendor_file:s0
+/vendor_dlkm/etc(/.*)? u:object_r:vendor_configs_file:s0
+EOF
+	echo -e "\n\e[1;32m[✓] Generated fs_config and file_contexts for vendor_dlkm modules! \e[0m"
 	echo -e "\n\e[1;93m[*] Performing depmod and creating a XZ-compressed tarball for vendor_dlkm modules! \e[0m"
 	depmod -b "${DLKM_DIR}" 0.0 || exit 1
 	cp -p "${DLKM_DIR}"/"${DEPMOD_DIR}"/modules.{alias,dep,softdep} "${DLKM_MODULES_DIR_FULL}"/ || exit 1
+	# Append modules and modules.* configuration files to vendor_dlkm_fs_config
+	for file in "${DLKM_MODULES_DIR_FULL}"/*; do
+	    echo "vendor_dlkm/lib/modules/$(basename "${file}") 0 0 0644" >>"${AK3}"/config/vendor_dlkm_fs_config || exit 1
+	done
 	sed -i -e 's|\([^: ]*lib/modules/[^: ]*\)|/\1|g' "${DLKM_MODULES_DIR_FULL}"/modules.dep || exit 1
 	tar -cvpf - -C "${DLKM_DIR}/${DEPMOD_DIR}/vendor" lib/ | xz -9e -T0 >"${KDIR}/anykernel3-dragonheart/modules/dlkm.tar.xz" || exit 1
 	echo -e "\n\e[1;32m[✓] Performed depmod and created a XZ-compressed tarball for vendor_dlkm modules! \e[0m"
