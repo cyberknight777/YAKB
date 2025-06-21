@@ -97,16 +97,6 @@ VENDOR_DLKM_EXTRA=(
 	gps_pwr.ko
 	ilitek_v3_mmi.ko
 	leds-gpio.ko
-	met_backlight_api.ko
-	met_emi_api.ko
-	met_gpu_adv_api.ko
-	met_gpu_api.ko
-	met_ipi_api.ko
-	met.ko
-	met_mcupm_api.ko
-	met_scmi_api.ko
-	met_sspm_api.ko
-	met_vcore_api.ko
 	mmi_decrete_charger_cp_qc3p.ko
 	mmi_info.ko
 	mmi_relay.ko
