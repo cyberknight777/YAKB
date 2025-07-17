@@ -183,10 +183,9 @@ elif [[ ${COMPILER} == clang ]]; then
 
 	KBUILD_COMPILER_STRING=$("${KDIR}"/"${COMPILER}"/bin/"${COMPILER}" -v 2>&1 | head -n 1 | sed 's/(https..*//' | sed 's/ version//')
 	export KBUILD_COMPILER_STRING
-	export PATH="${KDIR}"/"${COMPILER}"/bin/:/usr/bin/:"${PATH}"
 	MAKE+=(
 		O="${OUT_DIR}"
-		LLVM=1
+		LLVM="${KDIR}"/"${COMPILER}"/bin/
 	)
 	LINKER="${KDIR}/${COMPILER}/bin/ld.lld"
 fi
