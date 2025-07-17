@@ -295,7 +295,7 @@ img() {
 	rgn
 	echo -e "\n\e[1;93m[*] Building Kernel! \e[0m"
 	BUILD_START=$(date +"%s")
-	time make -j"$PROCS" "${MAKE[@]}" Image.gz mediatek/mt6855.dtb 2>&1 | tee log.txt
+	time make -j"$PROCS" "${MAKE[@]}" 2>&1 | tee log.txt
 	BUILD_END=$(date +"%s")
 	DIFF=$((BUILD_END - BUILD_START))
 	if [ -f "${OUT_DIR}/arch/arm64/boot/Image.gz" ]; then
@@ -319,7 +319,7 @@ img() {
 dtb() {
 	rgn
 	echo -e "\n\e[1;93m[*] Building DTBS! \e[0m"
-	time make -j"$PROCS" "${MAKE[@]}" dtbs || exit 1
+	time make -j"$PROCS" "${MAKE[@]}" mediatek/mt6855.dtb || exit 1
 	echo -e "\n\e[1;32m[✓] Built DTBS! \e[0m"
 	echo -e "\n\e[1;93m[*] Copying DTB files! \e[0m"
 	cp -p "${OUT_DIR}"/arch/arm64/boot/dts/mediatek/mt6855.dtb "${DIST_DIR}"/ || exit 1
