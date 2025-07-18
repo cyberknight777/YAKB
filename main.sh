@@ -58,6 +58,56 @@ fi
 # Telegram Information. Set 1 to enable. | Set 0 to disable.
 export TGI=1
 
+# A function to send message(s) via Telegram's BOT api.
+tg() {
+	local response
+	response=$(curl -sX POST https://api.telegram.org/bot"${TOKEN}"/sendMessage \
+		-d chat_id="${CHATID}" \
+		-d parse_mode=Markdown \
+		-d disable_web_page_preview=true \
+		-d text="$1")
+
+	if ! echo "$response" | grep -q '"ok":true'; then
+		local err
+		err=$(echo "$response" | sed -n 's/.*"description":"\([^"]*\)".*/\1/p')
+		echo -e "\n\e[1;31m[✗] tg(): Failed to send message: ${err:-Unknown error}\e[0m" >&2
+		exit 1
+	fi
+}
+
+# A function to send file(s) via Telegram's BOT api.
+tgs() {
+	local MD5 response
+	MD5=$(md5sum "$1" | cut -d' ' -f1)
+
+	response=$(curl -sX POST -F document=@"$1" https://api.telegram.org/bot"${TOKEN}"/sendDocument \
+		-F "chat_id=${CHATID}" \
+		-F "parse_mode=Markdown" \
+		-F "caption=$2 | *MD5*: \`$MD5\`")
+
+	if ! echo "$response" | grep -q '"ok":true'; then
+		local err
+		err=$(echo "$response" | sed -n 's/.*"description":"\([^"]*\)".*/\1/p')
+		echo -e "\n\e[1;31m[✗] tgs(): Failed to send file '$1': ${err:-Unknown error}\e[0m" >&2
+		exit 1
+	fi
+}
+
+# A function to handle notifying errors.
+abort() {
+
+	if [[ ${TGI} == "1" ]]; then
+		if [ -z "${2}" ]; then
+			tg "${1}"
+		else
+			tgs "${2}" "${1}"
+		fi
+	fi
+
+	echo -e "\n\e[1;31m[✗] ${1}\e[0m"
+	exit 1
+}
+
 # Number of jobs to run.
 PROCS=$(nproc --all)
 export PROCS
@@ -144,18 +194,19 @@ VENDOR_RAMDISK_EXTRA=(
 # Requirements
 if [ "${CI}" == 0 ]; then
 	if ! hash dialog make curl wget unzip find 2>/dev/null; then
-		echo -e "\n\e[1;31m[✗] Install dialog, make, curl, wget, unzip, and find! \e[0m"
-		exit 1
+		abort "Failed to find dialog, make, curl, wget, unzip, and find!"
 	fi
 fi
 
 if [[ ${COMPILER} == gcc ]]; then
 	if [ ! -d "${KDIR}/${COMPILER}64" ]; then
-		git clone https://github.com/cyberknight777/gcc-arm64 --depth=1 ${COMPILER}64 || exit 1
+		git clone https://github.com/cyberknight777/gcc-arm64 --depth=1 ${COMPILER}64 ||
+			abort "Failed to download GCC64 toolchain!"
 	fi
 
 	if [ ! -d "${KDIR}/${COMPILER}32" ]; then
-		git clone https://github.com/cyberknight777/gcc-arm --depth=1 ${COMPILER}32 || exit 1
+		git clone https://github.com/cyberknight777/gcc-arm --depth=1 ${COMPILER}32 ||
+			abort "Failed to download GCC32 toolchain!"
 	fi
 
 	KBUILD_COMPILER_STRING=$("${KDIR}"/${COMPILER}64/bin/aarch64-elf-gcc --version | head -n 1)
@@ -177,8 +228,9 @@ if [[ ${COMPILER} == gcc ]]; then
 
 elif [[ ${COMPILER} == clang ]]; then
 	if [ ! -f "${KDIR}/${COMPILER}/bin/${COMPILER}" ]; then
-		curl -sL https://github.com/LineageOS/android_prebuilts_clang_kernel_linux-x86_clang-r416183b/archive/refs/heads/lineage-20.0.tar.gz | tar -xzf - || exit 1
-		mv "${KDIR}"/android_prebuilts_clang_kernel_linux-x86_clang-r416183b-lineage-20.0 ${COMPILER} || exit 1
+		mkdir -p "${KDIR}"/"${COMPILER}" || abort "LLVM toolchain directory creation failed!"
+		curl -sL https://github.com/LineageOS/android_prebuilts_clang_kernel_linux-x86_clang-r416183b/archive/refs/heads/lineage-20.0.tar.gz |
+			tar -xzf - -C "${KDIR}"/"${COMPILER}" --strip-components=1 || abort "Failed to download LLVM toolchain!"
 	fi
 
 	KBUILD_COMPILER_STRING=$("${KDIR}"/"${COMPILER}"/bin/"${COMPILER}" -v 2>&1 | head -n 1 | sed 's/(https..*//' | sed 's/ version//')
@@ -191,12 +243,12 @@ elif [[ ${COMPILER} == clang ]]; then
 fi
 
 if [ ! -d "${AK3}" ]; then
-	git clone --depth=1 https://github.com/cyberknight777/anykernel3 -b "${CODENAME}" "${AK3}" || exit 1
+	git clone --depth=1 https://github.com/cyberknight777/anykernel3 -b "${CODENAME}" "${AK3}" ||
+		abort "Failed to download AnyKernel3!"
 fi
 
 if [ ! -f "${KDIR}/version" ]; then
-	echo -e "\n\e[1;31m[✗] version file not found!!! Read https://github.com/cyberknight777/YAKB#version-file for more information.\e[0m"
-	exit 1
+	abort "Missing 'version' file in ${KDIR}! See: https://github.com/cyberknight777/YAKB#version-file for details"
 fi
 
 KBUILD_BUILD_VERSION=$(grep num= version | cut -d= -f2)
@@ -209,69 +261,34 @@ zipn=DragonHeart-"${CODENAME}"-"${VERSION}"
 
 # A function to exit on SIGINT.
 exit_on_signal_SIGINT() {
-	echo -e "\n\n\e[1;31m[✗] Received INTR call - Exiting...\e[0m"
-	exit 0
+	abort "Operation cancelled by user!"
 }
 trap exit_on_signal_SIGINT SIGINT
 
-# A function to send message(s) via Telegram's BOT api.
-tg() {
-	local response
-	response=$(curl -sX POST https://api.telegram.org/bot"${TOKEN}"/sendMessage \
-		-d chat_id="${CHATID}" \
-		-d parse_mode=Markdown \
-		-d disable_web_page_preview=true \
-		-d text="$1")
-
-	if ! echo "$response" | grep -q '"ok":true'; then
-		local err
-		err=$(echo "$response" | sed -n 's/.*"description":"\([^"]*\)".*/\1/p')
-		echo -e "\n\e[1;31m[✗] tg(): Failed to send message: ${err:-Unknown error}\e[0m" >&2
-		exit 1
-	fi
-}
-
-# A function to send file(s) via Telegram's BOT api.
-tgs() {
-	local MD5 response
-	MD5=$(md5sum "$1" | cut -d' ' -f1)
-
-	response=$(curl -sX POST -F document=@"$1" https://api.telegram.org/bot"${TOKEN}"/sendDocument \
-		-F "chat_id=${CHATID}" \
-		-F "parse_mode=Markdown" \
-		-F "caption=$2 | *MD5*: \`$MD5\`")
-
-	if ! echo "$response" | grep -q '"ok":true'; then
-		local err
-		err=$(echo "$response" | sed -n 's/.*"description":"\([^"]*\)".*/\1/p')
-		echo -e "\n\e[1;31m[✗] tgs(): Failed to send file '$1': ${err:-Unknown error}\e[0m" >&2
-		exit 1
-	fi
-}
-
 # A function to clean kernel source prior building.
 clean() {
-	echo -e "\n\e[1;93m[*] Cleaning source and out/ directory! \e[0m"
-	make clean && make mrproper && rm -rf "${OUT_DIR}" || exit 1
-	echo -e "\n\e[1;32m[✓] Source cleaned and out/ removed! \e[0m"
+	echo -e "\n\e[1;93m[*] Removing ${OUT_DIR} directory! \e[0m"
+	rm -rf "${OUT_DIR}" || abort "Failed to remove output directory!"
+	echo -e "\n\e[1;32m[✓] Removed ${OUT_DIR} removed! \e[0m"
 }
 
 # A function to regenerate defconfig.
 rgn() {
 	echo -e "\n\e[1;93m[*] Regenerating defconfig! \e[0m"
-	mkdir -p "${OUT_DIR}"/{dist,modules,kernel_uapi_headers/usr} || exit 1
-	make "${MAKE[@]}" "${CONFIG}" || exit 1
-	cp -rf "${OUT_DIR}"/.config "${KDIR}"/arch/arm64/configs/"${CONFIG}" || exit 1
+	make "${MAKE[@]}" "${CONFIG}" || abort "Failed to regenerate defconfig!"
+	cp "${OUT_DIR}"/.config "${KDIR}"/arch/arm64/configs/"${CONFIG}" ||
+		abort "Failed to copy defconfig file!"
 	echo -e "\n\e[1;32m[✓] Defconfig regenerated! \e[0m"
 }
 
 # A function to open a menu based program to update current config.
 mcfg() {
 	rgn
-	echo -e "\n\e[1;93m[*] Making Menuconfig! \e[0m"
-	make "${MAKE[@]}" menuconfig || exit 1
-	cp -rf "${OUT_DIR}"/.config "${KDIR}"/arch/arm64/configs/"${CONFIG}" || exit 1
-	echo -e "\n\e[1;32m[✓] Saved Modifications! \e[0m"
+	echo -e "\n\e[1;93m[*] Making menuconfig! \e[0m"
+	make "${MAKE[@]}" menuconfig || abort "Failed to run 'make menuconfig'!"
+	cp "${OUT_DIR}"/.config "${KDIR}"/arch/arm64/configs/"${CONFIG}" ||
+		abort "Failed to copy defconfig file!"
+	echo -e "\n\e[1;32m[✓] Saved modifications! \e[0m"
 }
 
 # A function to build the kernel.
@@ -293,25 +310,23 @@ img() {
 "
 	fi
 	rgn
-	echo -e "\n\e[1;93m[*] Building Kernel! \e[0m"
+	echo -e "\n\e[1;93m[*] Building kernel! \e[0m"
 	BUILD_START=$(date +"%s")
 	time make -j"$PROCS" "${MAKE[@]}" 2>&1 | tee log.txt
 	BUILD_END=$(date +"%s")
 	DIFF=$((BUILD_END - BUILD_START))
 	if [ -f "${OUT_DIR}/arch/arm64/boot/Image.gz" ]; then
 		if [[ ${TGI} == "1" ]]; then
-			tg "*Kernel Built after $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)*"
+			tg "*Kernel built after $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)*!"
 		fi
 		echo -e "\n\e[1;32m[✓] Kernel built after $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)! \e[0m"
 		echo -e "\n\e[1;93m[*] Copying built files! \e[0m"
-		cp -p "${OUT_DIR}"/arch/arm64/boot/{Image.gz,dts/mediatek/mt6855.dtb} "${DIST_DIR}"/ || exit 1
+		mkdir -p "${DIST_DIR}" || abort "Failed to create distribution output directory"
+		cp -p "${OUT_DIR}"/arch/arm64/boot/{Image.gz,dts/mediatek/mt6855.dtb} "${DIST_DIR}"/ ||
+			abort "Failed to copy built files!"
 		echo -e "\n\e[1;32m[✓] Copied built files! \e[0m"
 	else
-		if [[ ${TGI} == "1" ]]; then
-			tgs "log.txt" "*Build failed*"
-		fi
-		echo -e "\n\e[1;31m[✗] Build Failed! \e[0m"
-		exit 1
+		abort "Failed to build kernel!" "${KDIR}/log.txt"
 	fi
 }
 
@@ -319,10 +334,11 @@ img() {
 dtb() {
 	rgn
 	echo -e "\n\e[1;93m[*] Building DTBS! \e[0m"
-	time make -j"$PROCS" "${MAKE[@]}" mediatek/mt6855.dtb || exit 1
+	make -j"$PROCS" "${MAKE[@]}" mediatek/mt6855.dtb || abort "Failed to build dtb!"
 	echo -e "\n\e[1;32m[✓] Built DTBS! \e[0m"
 	echo -e "\n\e[1;93m[*] Copying DTB files! \e[0m"
-	cp -p "${OUT_DIR}"/arch/arm64/boot/dts/mediatek/mt6855.dtb "${DIST_DIR}"/ || exit 1
+	cp -p "${OUT_DIR}"/arch/arm64/boot/dts/mediatek/mt6855.dtb "${DIST_DIR}"/ ||
+		abort "Failed to copy DTB files!"
 	echo -e "\n\e[1;32m[✓] Copied DTB files! \e[0m"
 }
 
@@ -334,33 +350,35 @@ _depmod() {
 	rgn
 
 	echo -e "\n\e[1;93m[*] Setting up modules.load! \e[0m"
-	mkdir -p "${DLKM_MODULES_DIR_FULL}" "${VNDR_MODULES_DIR_FULL}"
-	curl -sL https://github.com/yaap/device_motorola_cancunf/raw/"${MOD_BRANCH}"/modules/modules.load.vendor_dlkm -o "${DLKM_MODULES_LOAD}" || exit 1
-	curl -sL https://github.com/yaap/device_motorola_cancunf/raw/"${MOD_BRANCH}"/modules/modules.load.vendor_boot -o "${VNDR_MODULES_LOAD}" || exit 1
+	mkdir -p "${DLKM_MODULES_DIR_FULL}" "${VNDR_MODULES_DIR_FULL}" || abort "Failed to create vendor_ramdisk and vendor_dlkm staging directories!"
+	curl -sL https://github.com/yaap/device_motorola_cancunf/raw/"${MOD_BRANCH}"/modules/modules.load.vendor_dlkm -o "${DLKM_MODULES_LOAD}" ||
+		abort "Failed to download pre-defined modules.load for vendor_dlkm!"
+	curl -sL https://github.com/yaap/device_motorola_cancunf/raw/"${MOD_BRANCH}"/modules/modules.load.vendor_boot -o "${VNDR_MODULES_LOAD}" ||
+		abort "Failed to download pre-defined modules.load for vendor_ramdisk!"
 	echo -e "\n\e[1;32m[✓] Set up modules.load! \e[0m"
 
 	echo -e "\n\e[1;93m[*] Copying modules to respective modules directories by following modules.load! \e[0m"
 	while IFS= read -r modname; do
-		cp -p "${DIST_DIR}"/"${modname}" "${DLKM_MODULES_DIR_FULL}"/ || exit 1
+		cp -p "${DIST_DIR}"/"${modname}" "${DLKM_MODULES_DIR_FULL}"/ || abort "Failed to copy modules to respective modules directories for vendor_dlkm by following modules.load!"
 	done <"${DLKM_MODULES_LOAD}"
 
 	while IFS= read -r modname; do
-		cp -p "${DIST_DIR}"/"${modname}" "${VNDR_MODULES_DIR_FULL}"/ || exit 1
+		cp -p "${DIST_DIR}"/"${modname}" "${VNDR_MODULES_DIR_FULL}"/ || abort "Failed to copy modules to respective modules directories for vendor_ramdisk by following modules.load!"
 	done <"${VNDR_MODULES_LOAD}"
 	echo -e "\n\e[1;32m[✓] Copied modules to respective modules directories by following modules.load! \e[0m"
 
 	echo -e "\n\e[1;93m[*] Copying modules to respective modules directories by following the pre-determined array! \e[0m"
 	for mod in "${VENDOR_DLKM_EXTRA[@]}"; do
-		cp -p "${DIST_DIR}"/"${mod}" "${DLKM_MODULES_DIR_FULL}"/ || exit 1
+		cp -p "${DIST_DIR}"/"${mod}" "${DLKM_MODULES_DIR_FULL}"/ || abort "Failed to copy modules to respective modules directories for vendor_dlkm by following the pre-determined array!"
 	done
 
 	for mod in "${VENDOR_RAMDISK_EXTRA[@]}"; do
-		cp -p "${DIST_DIR}"/"${mod}" "${VNDR_MODULES_DIR_FULL}"/ || exit 1
+		cp -p "${DIST_DIR}"/"${mod}" "${VNDR_MODULES_DIR_FULL}"/ || abort "Failed to copy modules to respective modules directories for vendor_ramdisk by following the pre-determined array!"
 	done
 	echo -e "\n\e[1;32m[✓] Copied modules to respective modules directories by following the pre-determined array! \e[0m"
 
 	echo -e "\n\e[1;93m[*] Generating fs_config and file_contexts for vendor_dlkm modules! \e[0m"
-	cat <<EOF >"${AK3}"/config/vendor_dlkm_fs_config || exit 1
+	cat <<EOF >"${AK3}"/config/vendor_dlkm_fs_config || abort "Failed to generate fs_config for vendor_dlkm modules!"
 / 0 0 0755
 vendor_dlkm/ 0 0 0755
 vendor_dlkm/lost+found 0 0 0755
@@ -372,45 +390,47 @@ vendor_dlkm/etc/fs_config_files 0 0 0644
 vendor_dlkm/lib 0 0 0755
 vendor_dlkm/lib/modules 0 0 0755
 EOF
-	cat <<EOF >"${AK3}"/config/vendor_dlkm_file_contexts || exit 1
+	cat <<EOF >"${AK3}"/config/vendor_dlkm_file_contexts || abort "Failed to generate file_contexts for vendor_dlkm modules!"
 / u:object_r:vendor_file:s0
 /vendor_dlkm(/.*)? u:object_r:vendor_file:s0
 /vendor_dlkm/etc(/.*)? u:object_r:vendor_configs_file:s0
 EOF
 	echo -e "\n\e[1;32m[✓] Generated fs_config and file_contexts for vendor_dlkm modules! \e[0m"
 	echo -e "\n\e[1;93m[*] Performing depmod and creating a XZ-compressed tarball for vendor_dlkm modules! \e[0m"
-	depmod -b "${DLKM_DIR}" 0.0 || exit 1
-	cp -p "${DLKM_DIR}"/"${DEPMOD_DIR}"/modules.{alias,dep,softdep} "${DLKM_MODULES_DIR_FULL}"/ || exit 1
+	depmod -b "${DLKM_DIR}" 0.0 || abort "Failed to perform depmod for vendor_dlkm modules!"
+	cp -p "${DLKM_DIR}"/"${DEPMOD_DIR}"/modules.{alias,dep,softdep} "${DLKM_MODULES_DIR_FULL}"/ || abort "Failed to copy modules.* configurations for vendor_dlkm modules!"
 	# Append modules and modules.* configuration files to vendor_dlkm_fs_config
 	for file in "${DLKM_MODULES_DIR_FULL}"/*; do
-	    echo "vendor_dlkm/lib/modules/$(basename "${file}") 0 0 0644" >>"${AK3}"/config/vendor_dlkm_fs_config || exit 1
+		echo "vendor_dlkm/lib/modules/$(basename "${file}") 0 0 0644" >>"${AK3}"/config/vendor_dlkm_fs_config || abort "Failed to append modules and modules.* configurations for vendor_dlkm modules!"
 	done
-	sed -i -e 's|\([^: ]*lib/modules/[^: ]*\)|/\1|g' "${DLKM_MODULES_DIR_FULL}"/modules.dep || exit 1
-	tar -cvpf - -C "${DLKM_DIR}/${DEPMOD_DIR}/vendor" lib/ | xz -9e -T0 >"${KDIR}/anykernel3-dragonheart/modules/dlkm.tar.xz" || exit 1
+	sed -i -e 's|\([^: ]*lib/modules/[^: ]*\)|/\1|g' "${DLKM_MODULES_DIR_FULL}"/modules.dep || abort "Failed to fix module paths in modules.dep for vendor_dlkm modules!"
+	tar -cvpf - -C "${DLKM_DIR}/${DEPMOD_DIR}/vendor" lib/ | xz -9e -T0 >"${KDIR}/anykernel3-dragonheart/modules/dlkm.tar.xz" || abort "Failed to create a XZ-compressed tarball for vendor_dlkm modules!"
 	echo -e "\n\e[1;32m[✓] Performed depmod and created a XZ-compressed tarball for vendor_dlkm modules! \e[0m"
 
 	echo -e "\n\e[1;93m[*] Performing depmod and creating a LZ4-compressed CPIO archive for vendor_ramdisk modules! \e[0m"
-	depmod -b "${VNDR_DIR}" 0.0 || exit 1
-	cp -p "${VNDR_DIR}"/"${DEPMOD_DIR}"/modules.{alias,dep,softdep} "${VNDR_MODULES_DIR_FULL}"/ || exit 1
-	sed -i -e 's|\([^: ]*lib/modules/[^: ]*\)|/\1|g' "${VNDR_MODULES_DIR_FULL}"/modules.dep || exit 1
-	find "${VNDR_DIR}"/"${DEPMOD_DIR}"/lib | sort | sed "s|^${VNDR_DIR}/${DEPMOD_DIR}/||" | (cd "${VNDR_DIR}"/"${DEPMOD_DIR}" && cpio -o -H newc) | lz4 -l -12 --favor-decSpeed >"${KDIR}/anykernel3-dragonheart/modules/dlkm.cpio.lz4" || exit 1
+	depmod -b "${VNDR_DIR}" 0.0 || abort "Failed to perform depmod for vendor_ramdisk modules!"
+	cp -p "${VNDR_DIR}"/"${DEPMOD_DIR}"/modules.{alias,dep,softdep} "${VNDR_MODULES_DIR_FULL}"/ || abort "Failed to copy modules.* configurations for vendor_ramdisk modules!"
+	sed -i -e 's|\([^: ]*lib/modules/[^: ]*\)|/\1|g' "${VNDR_MODULES_DIR_FULL}"/modules.dep || abort "Failed to fix module paths in modules.dep for vendor_ramdisk modules!"
+	find "${VNDR_DIR}"/"${DEPMOD_DIR}"/lib | sort | sed "s|^${VNDR_DIR}/${DEPMOD_DIR}/||" |
+		(cd "${VNDR_DIR}"/"${DEPMOD_DIR}" && cpio -o -H newc) | lz4 -l -12 --favor-decSpeed >"${KDIR}/anykernel3-dragonheart/modules/dlkm.cpio.lz4" ||
+		abort "Failed to create a LZ4-compressed CPIO archive for vendor_ramdisk modules!"
 	echo -e "\n\e[1;32m[✓] Performed depmod and created a LZ4-compressed CPIO archive for vendor_ramdisk modules! \e[0m"
 }
 
 # A function to build out-of-tree modules.
 mod() {
 	if [[ ${TGI} == "1" ]]; then
-		tg "*Building Modules!*"
+		tg "*Building modules!*"
 	fi
 	rgn
-	echo -e "\n\e[1;93m[*] Building Modules! \e[0m"
-	make -j"$PROCS" "${MAKE[@]}" modules || exit 1
-	make "${MAKE[@]}" INSTALL_MOD_PATH="${OUT_DIR}"/modules modules_install || exit 1
-	echo -e "\n\e[1;32m[✓] Built Modules! \e[0m"
+	echo -e "\n\e[1;93m[*] Building modules! \e[0m"
+	make -j"$PROCS" "${MAKE[@]}" modules || abort "Failed to build modules!"
+	make "${MAKE[@]}" INSTALL_MOD_PATH="${OUT_DIR}"/modules modules_install || abort "Failed to install modules!"
+	echo -e "\n\e[1;32m[✓] Built modules! \e[0m"
 	echo -e "\n\e[1;93m[*] Copying modules files! \e[0m"
 	MOD=$(find "${OUT_DIR}"/modules -type f -name "*.ko")
 	for FILE in ${MOD}; do
-		cp -p "${FILE}" "${DIST_DIR}"/ || exit 1
+		cp -p "${FILE}" "${DIST_DIR}"/ || abort "Failed to copy built modules!"
 		if [[ ${DEBUG} == '0' ]]; then
 			FILENAME=$(basename "${FILE}")
 			if [[ ${COMPILER} == clang ]]; then
@@ -418,28 +438,29 @@ mod() {
 			elif [[ ${COMPILER} == gcc ]]; then
 				OBJCOPY="${KDIR}"/"${COMPILER}"/bin/aarch64-elf-objcopy
 			fi
-			"${OBJCOPY}" --strip-debug "${DIST_DIR}"/"${FILENAME}" || exit 1
+			"${OBJCOPY}" --strip-debug "${DIST_DIR}"/"${FILENAME}" || abort "Failed to strip debug symbols from modules!"
 		fi
 	done
 	echo -e "\n\e[1;32m[✓] Copied modules files! \e[0m"
 	_depmod
 }
 
-# A function to build kernel UAPI headers.
+# A function to build kernel UAPI kernel headers.
 hdr() {
 	if [[ ${TGI} == "1" ]]; then
-		tg "*Building UAPI Headers!*"
+		tg "*Building UAPI kernel headers!*"
 	fi
 	rgn
-	echo -e "\n\e[1;93m[*] Building UAPI Headers! \e[0m"
-	mkdir -p "${OUT_DIR}"/kernel_uapi_headers/usr || exit 1
-	make -j"$PROCS" "${MAKE[@]}" INSTALL_HDR_PATH="${OUT_DIR}"/kernel_uapi_headers/usr headers_install || exit 1
+	echo -e "\n\e[1;93m[*] Building UAPI kernel headers! \e[0m"
+	make -j"$PROCS" "${MAKE[@]}" INSTALL_HDR_PATH="${OUT_DIR}"/kernel_uapi_headers/usr headers_install ||
+		abort "Failed to build UAPI kernel headers!"
 	find "${OUT_DIR}"/kernel_uapi_headers '(' -name ..install.cmd -o -name .install ')' -exec rm '{}' +
-	tar -czf "${OUT_DIR}"/kernel-uapi-headers.tar.gz --directory="${OUT_DIR}"/kernel_uapi_headers usr/ || exit 1
-	echo -e "\n\e[1;32m[✓] Built UAPI Headers! \e[0m"
-	echo -e "\n\e[1;93m[*] Copying UAPI Headers! \e[0m"
-	cp -p "${OUT_DIR}"/kernel-uapi-headers.tar.gz "${DIST_DIR}"/ || exit 1
-	echo -e "\n\e[1;32m[✓] Copied UAPI Headers! \e[0m"
+	tar -czf "${OUT_DIR}"/kernel-uapi-headers.tar.gz --directory="${OUT_DIR}"/kernel_uapi_headers usr/ ||
+		abort "Failed to create a GZ-compressed tarball for UAPI kernel headers!"
+	echo -e "\n\e[1;32m[✓] Built UAPI kernel headers! \e[0m"
+	echo -e "\n\e[1;93m[*] Copying UAPI kernel headers! \e[0m"
+	cp -p "${OUT_DIR}"/kernel-uapi-headers.tar.gz "${DIST_DIR}"/ || abort "Failed to copy GZ-compressed tarball for UAPI kernel headers!"
+	echo -e "\n\e[1;32m[✓] Copied UAPI kernel headers! \e[0m"
 }
 
 # A function to copy built objects to prebuilt kernel tree.
@@ -449,34 +470,35 @@ pre() {
 		tg "*Copying built objects to prebuilt kernel tree!*"
 	fi
 	echo -e "\n\e[1;93m[*] Copying built objects to prebuilt kernel tree! \e[0m"
-	git clone https://github.com/"${1}".git "${preb}" || exit 1
-	cd "${preb}" || exit 1
-	echo "https://cyberknight777:$PASSWORD@github.com" >"${preb}"/.pwd
-	git config credential.helper "store --file ${preb}/.pwd" || exit 1
-	cp -p "${DIST_DIR}"/Image.gz "${preb}"/ || exit 1
-	cp -p "${DIST_DIR}"/mt6855.dtb "${preb}"/dtb/ || exit 1
-	tar -xvf "${DIST_DIR}"/kernel-uapi-headers.tar.gz -C "${preb}"/kernel-headers/ || exit 1
+	git clone https://github.com/"${1}".git "${preb}" || abort "Failed to download prebuilt kernel tree!"
+	cd "${preb}" || abort "Failed to cd into prebuilt kernel tree!"
+	echo "https://cyberknight777:$PASSWORD@github.com" >"${preb}"/.pwd || abort "Failed to create password file for prebuilt kernel tree!"
+	git config credential.helper "store --file ${preb}/.pwd" || abort "Failed to configure git credential.helper for prebuilt kernel tree!"
+	cp -p "${DIST_DIR}"/Image.gz "${preb}"/ || abort "Failed to copy Image.gz to prebuilt kernel tree!"
+	cp -p "${DIST_DIR}"/mt6855.dtb "${preb}"/dtb/ || abort "Failed to copy mt6855.dtb to prebuilt kernel tree!"
+	tar -xvf "${DIST_DIR}"/kernel-uapi-headers.tar.gz -C "${preb}"/kernel-headers/ ||
+		abort "Failed to extract GZ-compressed tarball for UAPI kernel headers into prebuilt kernel tree"
 	for file in "${preb}"/modules/vendor_boot/*.ko; do
 		filename=$(basename "${file}")
 
 		if [ -e "${DIST_DIR}/${filename}" ]; then
-			cp -p "${DIST_DIR}/${filename}" "${preb}/modules/vendor_boot/" || exit 1
+			cp -p "${DIST_DIR}/${filename}" "${preb}/modules/vendor_boot/" || abort "Failed to copy vendor_ramdisk modules into prebuilt kernel tree!"
 		fi
 	done
 	for file in "${preb}"/modules/vendor_dlkm/*.ko; do
 		filename=$(basename "${file}")
 
 		if [ -e "${DIST_DIR}/${filename}" ]; then
-			cp -p "${DIST_DIR}/${filename}" "${preb}/modules/vendor_dlkm/" || exit 1
+			cp -p "${DIST_DIR}/${filename}" "${preb}/modules/vendor_dlkm/" || abort "Failed to copy vendor_dlkm modules into prebuilt kernel tree!"
 		fi
 
 	done
-	git add "${preb}"/{Image.gz,dtb,kernel-headers,modules} || exit 1
-	git commit -s -m "cancunf-kernel: Update prebuilts $(date -u '+%d%m%Y%I%M')" -m "- This is an auto-generated commit." || exit 1
-	git commit --amend --reset-author --no-edit || exit 1
-	git push || exit 1
-	cd "${KDIR}" || exit 1
-	rm -rf "${preb}" || exit 1
+	git add "${preb}"/{Image.gz,dtb,kernel-headers,modules} || abort "Failed to add file contents to git index for prebuilt kernel tree!"
+	git commit -s -m "cancunf-kernel: Update prebuilts $(date -u '+%d%m%Y%I%M')" -m "- This is an auto-generated commit." || abort "Failed to record changes to prebuilt kernel tree!"
+	git commit --amend --reset-author --no-edit || abort "Failed to reset authorship information to prebuilt kernel tree!"
+	git push || abort "Failed to update remote refs to prebuilt kernel tree!"
+	cd "${KDIR}" || abort "Failed to cd into root kernel directory!"
+	rm -rf "${preb}" || abort "Failed to clean up prebuilt kernel tree!"
 	echo -e "\n\e[1;32m[✓] Copied built objects to prebuilt kernel tree! \e[0m"
 }
 
@@ -488,14 +510,13 @@ lto() {
 	if [[ ${1} == "full" ]]; then
 		"${KDIR}"/scripts/config --file "${KDIR}"/arch/arm64/configs/"${CONFIG}" \
 			-e LTO_CLANG_FULL \
-			-d LTO_CLANG_THIN || exit 1
+			-d LTO_CLANG_THIN || abort "Failed to modify LTO mode to ${1}"
 	elif [[ ${1} == "thin" ]]; then
 		"${KDIR}"/scripts/config --file "${KDIR}"/arch/arm64/configs/"${CONFIG}" \
 			-d LTO_CLANG_FULL \
-			-e LTO_CLANG_THIN || exit 1
+			-e LTO_CLANG_THIN || abort "Failed to modify LTO mode to ${1}"
 	else
-		echo -e "\n\e[1;31m[✗] Incorrect LTO mode set! \e[0m"
-		exit 1
+		abort "Failed to set LTO mode! Expected: 'full' or 'thin'"
 	fi
 
 	echo -e "\n\e[1;32m[✓] Modified LTO mode to ${1}! \e[0m"
@@ -507,21 +528,21 @@ mkzip() {
 		tg "*Building zip!*"
 	fi
 	echo -e "\n\e[1;93m[*] Building zip! \e[0m"
-	cat "${DIST_DIR}"/mt6855.dtb >"${AK3}"/dtb || exit 1
-	cp -p "${DIST_DIR}"/Image.gz "${AK3}"/ || exit 1
-	cd "${AK3}" || exit 1
-	zip -r9 "$zipn".zip . -x ".git*" -x "*.zip" || exit 1
+	cat "${DIST_DIR}"/mt6855.dtb >"${AK3}"/dtb || abort "Failed to concatenate mt6855.dtb to AnyKernel3 direcotry!"
+	cp -p "${DIST_DIR}"/Image.gz "${AK3}"/ || abort "Failed to copy Image.gz to AnyKernel3 directory!"
+	cd "${AK3}" || abort "Failed to cd into AnyKernel3 directory!"
+	zip -r9 "$zipn".zip . -x ".git*" -x "*.zip" || abort "Failed to package and compress AnyKernel3 directory!"
 	echo -e "\n\e[1;32m[✓] Built zip! \e[0m"
 	if [[ ${OTA} == "1" ]]; then
 		local ota="${AK3}/ota"
-		git clone https://github.com/cyberknight777/cancunf_releases.git "${ota}" || exit 1
-		cd "${ota}" || exit 1
-		echo "https://cyberknight777:$PASSWORD@github.com" >"${ota}"/.pwd
-		git config credential.helper "store --file ${ota}/.pwd" || exit 1
+		git clone https://github.com/cyberknight777/cancunf_releases.git "${ota}" || abort "Failed to download OTA repository!"
+		cd "${ota}" || abort "Failed to cd into OTA repository!"
+		echo "https://cyberknight777:$PASSWORD@github.com" >"${ota}"/.pwd || abort "Failed to create password file for OTA repository!"
+		git config credential.helper "store --file ${ota}/.pwd" || abort "Failed to configure git credential.helper for OTA repository!"
 		sha1=$(sha1sum "${AK3}"/"${zipn}".zip | cut -d ' ' -f1)
 		if [[ ${RELEASE} != "1" ]]; then
-			rm "${ota}"/changelog_r.md || exit 1
-			wget "${CL_LINK}/raw" -O "${ota}"/changelog_r.md || exit 1
+			rm "${ota}"/changelog_r.md || abort "Failed to remove changelog file for OTA repository!"
+			wget "${CL_LINK}/raw" -O "${ota}"/changelog_r.md || abort "Failed to download changelog file for OTA repository!"
 			echo "
 {
   \"kernel\": {
@@ -536,16 +557,18 @@ mkzip() {
     \"link\": \"https://t.me/knightschat\"
   }
 }
-" >"${ota}"/DragonHeart-r.json
-			git add "${ota}"/DragonHeart-r.json "${ota}"/changelog_r.md || exit 1
-			git commit -s -m "DragonHeart: Update ${CODENAME} to ${VERSION} release" -m "- This is a bleeding edge release." || exit 1
-			git commit --amend --reset-author --no-edit || exit 1
-			git push || exit 1
-			gh release create "${VERSION}" -t "DragonHeart for ${CODENAME} [BLEEDING EDGE] - ${VERSION}" || exit 1
-			gh release upload "${VERSION}" "${AK3}"/"${zipn}.zip" || exit 1
+" >"${ota}"/DragonHeart-r.json || abort "Failed to create JSON for OTA repository!"
+			git add "${ota}"/DragonHeart-r.json "${ota}"/changelog_r.md || abort "Failed to add file contents to git index for OTA repository!"
+			git commit -s -m "DragonHeart: Update ${CODENAME} to ${VERSION} release" -m "- This is a bleeding edge release." ||
+				abort "Failed to record changes to OTA repository!"
+			git commit --amend --reset-author --no-edit || abort "Failed to reset authorship information to OTA repository!"
+			git push || abort "Failed to update remote refs to OTA repository!"
+			gh release create "${VERSION}" -t "DragonHeart for ${CODENAME} [BLEEDING EDGE] - ${VERSION}" ||
+				abort "Failed to create a GitHub release for OTA repository!"
+			gh release upload "${VERSION}" "${AK3}"/"${zipn}.zip" || abort "Failed to upload objects to Github release for OTA repository!"
 		else
-			rm "${ota}"/changelog.md || exit 1
-			wget "${CL_LINK}"/raw -O "${ota}"/changelog.md || exit 1
+			rm "${ota}"/changelog.md || abort "Failed to remove changelog file for OTA repository!"
+			wget "${CL_LINK}"/raw -O "${ota}"/changelog.md || abort "Failed to download changelog file for OTA repository!"
 			echo "
 {
   \"kernel\": {
@@ -560,16 +583,18 @@ mkzip() {
     \"link\": \"https://t.me/knightschat\"
   }
 }
-" >"${ota}"/DragonHeart-rc.json
-			git add "${ota}"/DragonHeart-rc.json "${ota}"/changelog.md || exit 1
-			git commit -s -m "DragonHeart: Update ${CODENAME} to ${VERSION} release" -m "- This is a stable release." || exit 1
-			git commit --amend --reset-author --no-edit || exit 1
-			git push || exit 1
-			gh release create "${VERSION}" -t "DragonHeart for ${CODENAME} [RELEASE] - ${VERSION}" || exit 1
-			gh release upload "${VERSION}" "${AK3}"/"${zipn}.zip" || exit 1
+" >"${ota}"/DragonHeart-rc.json || abort "Failed to create JSON for OTA repository!"
+			git add "${ota}"/DragonHeart-rc.json "${ota}"/changelog.md || abort "Failed to add file contents to git index for OTA repository!"
+			git commit -s -m "DragonHeart: Update ${CODENAME} to ${VERSION} release" -m "- This is a stable release." ||
+				abort "Failed to record changes to OTA repository!"
+			git commit --amend --reset-author --no-edit || abort "Failed to reset authorship information to OTA repository!"
+			git push || abort "Failed to update remote refs to OTA repository!"
+			gh release create "${VERSION}" -t "DragonHeart for ${CODENAME} [RELEASE] - ${VERSION}" ||
+				abort "Failed to create a GitHub release for OTA repository!"
+			gh release upload "${VERSION}" "${AK3}"/"${zipn}.zip" || abort "Failed to upload objects to Github release for OTA repository!"
 		fi
-		cd "${KDIR}" || exit 1
-		rm -rf "${ota}" || exit 1
+		cd "${KDIR}" || abort "Failed to cd into root kernel directory!"
+		rm -rf "${ota}" || abort "Failed to clean up OTA repository!"
 	fi
 	if [[ ${TGI} == "1" ]]; then
 		tgs "${AK3}/${zipn}.zip" "*#${kver} ${KBUILD_COMPILER_STRING}*"
@@ -585,14 +610,14 @@ mkzip() {
 obj() {
 	rgn
 	echo -e "\n\e[1;93m[*] Building ${1}! \e[0m"
-	time make -j"$PROCS" "${MAKE[@]}" "$1" || exit 1
+	make -j"$PROCS" "${MAKE[@]}" "${1}" || abort "Failed to build specific objects!"
 	echo -e "\n\e[1;32m[✓] Built ${1}! \e[0m"
 }
 
 # A function to uprev localversion in defconfig.
 upr() {
 	echo -e "\n\e[1;93m[*] Bumping localversion to -DragonHeart-${1}! \e[0m"
-	"${KDIR}"/scripts/config --file "${KDIR}"/arch/arm64/configs/"${CONFIG}" --set-str CONFIG_LOCALVERSION "-DragonHeart-${1}" || exit 1
+	"${KDIR}"/scripts/config --file "${KDIR}"/arch/arm64/configs/"${CONFIG}" --set-str CONFIG_LOCALVERSION "-DragonHeart-${1}" || abort "Failed to uprev localversion!"
 	rgn
 	echo -e "\n\e[1;32m[✓] Bumped localversion to -DragonHeart-${1}! \e[0m"
 }
@@ -636,7 +661,7 @@ ndialog() {
 	OPTIONS=(1 "Build kernel"
 		2 "Build DTBs"
 		3 "Build modules"
-		4 "Build kernel UAPI headers"
+		4 "Build UAPI kernel headers"
 		5 "Copy built objects to prebuilt kernel tree"
 		6 "Modify LTO mode"
 		7 "Open menuconfig"
