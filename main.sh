@@ -510,7 +510,7 @@ mkzip() {
 	cat "${DIST_DIR}"/mt6855.dtb >"${AK3}"/dtb || exit 1
 	cp -p "${DIST_DIR}"/Image.gz "${AK3}"/ || exit 1
 	cd "${AK3}" || exit 1
-	zip -r9 "$zipn".zip . -x ".git*" -x "README.md" -x "LICENSE" -x "*.zip" || exit 1
+	zip -r9 "$zipn".zip . -x ".git*" -x "*.zip" || exit 1
 	echo -e "\n\e[1;32m[✓] Built zip! \e[0m"
 	if [[ ${OTA} == "1" ]]; then
 		local ota="${AK3}/ota"
