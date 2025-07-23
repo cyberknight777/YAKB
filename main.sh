@@ -404,7 +404,7 @@ EOF
 		echo "vendor_dlkm/lib/modules/$(basename "${file}") 0 0 0644" >>"${AK3}"/config/vendor_dlkm_fs_config || abort "Failed to append modules and modules.* configurations for vendor_dlkm modules!"
 	done
 	sed -i -e 's|\([^: ]*lib/modules/[^: ]*\)|/\1|g' "${DLKM_MODULES_DIR_FULL}"/modules.dep || abort "Failed to fix module paths in modules.dep for vendor_dlkm modules!"
-	tar -cvpf - -C "${DLKM_DIR}/${DEPMOD_DIR}/vendor" lib/ | xz -9e -T0 >"${KDIR}/anykernel3-dragonheart/modules/dlkm.tar.xz" || abort "Failed to create a XZ-compressed tarball for vendor_dlkm modules!"
+	tar -cvpf - -C "${DLKM_DIR}/${DEPMOD_DIR}/vendor" lib/ | xz -9e -T0 >"${DIST_DIR}/dlkm.tar.xz" || abort "Failed to create a XZ-compressed tarball for vendor_dlkm modules!"
 	echo -e "\n\e[1;32m[✓] Performed depmod and created a XZ-compressed tarball for vendor_dlkm modules! \e[0m"
 
 	echo -e "\n\e[1;93m[*] Performing depmod and creating a LZ4-compressed CPIO archive for vendor_ramdisk modules! \e[0m"
@@ -412,7 +412,7 @@ EOF
 	cp -p "${VNDR_DIR}"/"${DEPMOD_DIR}"/modules.{alias,dep,softdep} "${VNDR_MODULES_DIR_FULL}"/ || abort "Failed to copy modules.* configurations for vendor_ramdisk modules!"
 	sed -i -e 's|\([^: ]*lib/modules/[^: ]*\)|/\1|g' "${VNDR_MODULES_DIR_FULL}"/modules.dep || abort "Failed to fix module paths in modules.dep for vendor_ramdisk modules!"
 	find "${VNDR_DIR}"/"${DEPMOD_DIR}"/lib | sort | sed "s|^${VNDR_DIR}/${DEPMOD_DIR}/||" |
-		(cd "${VNDR_DIR}"/"${DEPMOD_DIR}" && cpio -o -H newc) | lz4 -l -12 --favor-decSpeed >"${KDIR}/anykernel3-dragonheart/modules/dlkm.cpio.lz4" ||
+		(cd "${VNDR_DIR}"/"${DEPMOD_DIR}" && cpio -o -H newc) | lz4 -l -12 --favor-decSpeed >"${DIST_DIR}/dlkm.cpio.lz4" ||
 		abort "Failed to create a LZ4-compressed CPIO archive for vendor_ramdisk modules!"
 	echo -e "\n\e[1;32m[✓] Performed depmod and created a LZ4-compressed CPIO archive for vendor_ramdisk modules! \e[0m"
 }
@@ -478,13 +478,7 @@ pre() {
 	cp -p "${DIST_DIR}"/mt6855.dtb "${preb}"/dtb/ || abort "Failed to copy mt6855.dtb to prebuilt kernel tree!"
 	tar -xvf "${DIST_DIR}"/kernel-uapi-headers.tar.gz -C "${preb}"/kernel-headers/ ||
 		abort "Failed to extract GZ-compressed tarball for UAPI kernel headers into prebuilt kernel tree"
-	for file in "${preb}"/modules/vendor_boot/*.ko; do
-		filename=$(basename "${file}")
-
-		if [ -e "${DIST_DIR}/${filename}" ]; then
-			cp -p "${DIST_DIR}/${filename}" "${preb}/modules/vendor_boot/" || abort "Failed to copy vendor_ramdisk modules into prebuilt kernel tree!"
-		fi
-	done
+	cp -p "${DIST_DIR}"/dlkm.cpio.lz4 "${preb}"/modules/vendor_boot/dlkm.cpio || abort "Failed to copy prebuilt vendor_ramdisk fragment into prebuilt kernel tree!"
 	for file in "${preb}"/modules/vendor_dlkm/*.ko; do
 		filename=$(basename "${file}")
 
@@ -528,8 +522,10 @@ mkzip() {
 		tg "*Building zip!*"
 	fi
 	echo -e "\n\e[1;93m[*] Building zip! \e[0m"
-	cat "${DIST_DIR}"/mt6855.dtb >"${AK3}"/dtb || abort "Failed to concatenate mt6855.dtb to AnyKernel3 direcotry!"
+	cat "${DIST_DIR}"/mt6855.dtb >"${AK3}"/dtb || abort "Failed to concatenate mt6855.dtb to AnyKernel3 directory!"
 	cp -p "${DIST_DIR}"/Image.gz "${AK3}"/ || abort "Failed to copy Image.gz to AnyKernel3 directory!"
+	cp -p "${DIST_DIR}"/dlkm.cpio.lz4 "${AK3}"/modules/ || abort "Failed to copy LZ4-compressed CPIO archive for vendor_ramdisk modules to AnyKernel3 directory!"
+	cp -p "${DIST_DIR}"/dlkm.tar.xz "${AK3}"/modules/ || abort "Failed to copy XZ-compressed tarball for vendor_dlkm modules to AnyKernel3 directory!"
 	cd "${AK3}" || abort "Failed to cd into AnyKernel3 directory!"
 	zip -r9 "$zipn".zip . -x ".git*" -x "*.zip" || abort "Failed to package and compress AnyKernel3 directory!"
 	echo -e "\n\e[1;32m[✓] Built zip! \e[0m"
