@@ -267,9 +267,10 @@ trap exit_on_signal_SIGINT SIGINT
 
 # A function to clean kernel source prior building.
 clean() {
-	echo -e "\n\e[1;93m[*] Removing ${OUT_DIR} directory! \e[0m"
+	echo -e "\n\e[1;93m[*] Removing ${OUT_DIR} directory and cleaning up ${AK3} directory! \e[0m"
 	rm -rf "${OUT_DIR}" || abort "Failed to remove output directory!"
-	echo -e "\n\e[1;32m[✓] Removed ${OUT_DIR} removed! \e[0m"
+	rm -rf "${AK3}"/{*.zip,*.gz,config/vendor_dlkm*,dtb,modules/dlkm.*} || abort "Failed to clean up AnyKernel3 directory!"
+	echo -e "\n\e[1;32m[✓] Removed ${OUT_DIR} and cleaned up ${AK3} directory! \e[0m"
 }
 
 # A function to regenerate defconfig.
