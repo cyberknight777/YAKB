@@ -416,6 +416,13 @@ EOF
 		(cd "${VNDR_DIR}"/"${DEPMOD_DIR}" && cpio -o -H newc) | lz4 -l -12 --favor-decSpeed >"${DIST_DIR}/dlkm.cpio.lz4" ||
 		abort "Failed to create a LZ4-compressed CPIO archive for vendor_ramdisk modules!"
 	echo -e "\n\e[1;32m[✓] Performed depmod and created a LZ4-compressed CPIO archive for vendor_ramdisk modules! \e[0m"
+
+	if [[ ${PF_RD} == "1" ]]; then
+		echo -e "\n\e[1;93m[*] Installing updated modules.load.recovery to ${AK3}! \e[0m"
+		curl -sL "https://github.com/yaap/device_motorola_cancunf/raw/"${MOD_BRANCH}"/modules/modules.load.recovery" -o "${AK3}"/config/modules.load.recovery ||
+			abort "Failed to install updated modules.load.recovery to ${AK3}!"
+		echo -e "\n\e[1;32m[✓] Installed updated modules.load.recovery to ${AK3}! \e[0m"
+	fi
 }
 
 # A function to build out-of-tree modules.
