@@ -98,9 +98,9 @@ abort() {
 
 	if [[ ${TGI} == "1" ]]; then
 		if [ -z "${2}" ]; then
-			tg "${1}"
+			tg "*${1}*"
 		else
-			tgs "${2}" "${1}"
+			tgs "${2}" "*${1}*"
 		fi
 	fi
 
