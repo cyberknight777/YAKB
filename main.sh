@@ -352,9 +352,9 @@ _depmod() {
 
 	echo -e "\n\e[1;93m[*] Setting up modules.load! \e[0m"
 	mkdir -p "${DLKM_MODULES_DIR_FULL}" "${VNDR_MODULES_DIR_FULL}" || abort "Failed to create vendor_ramdisk and vendor_dlkm staging directories!"
-	curl -sL https://github.com/yaap/device_motorola_cancunf/raw/"${MOD_BRANCH}"/modules/modules.load.vendor_dlkm -o "${DLKM_MODULES_LOAD}" ||
+	curl -sL "https://github.com/yaap/device_motorola_cancunf/raw/${MOD_BRANCH}/modules/modules.load.vendor_dlkm" -o "${DLKM_MODULES_LOAD}" ||
 		abort "Failed to download pre-defined modules.load for vendor_dlkm!"
-	curl -sL https://github.com/yaap/device_motorola_cancunf/raw/"${MOD_BRANCH}"/modules/modules.load.vendor_boot -o "${VNDR_MODULES_LOAD}" ||
+	curl -sL "https://github.com/yaap/device_motorola_cancunf/raw/${MOD_BRANCH}/modules/modules.load.vendor_boot" -o "${VNDR_MODULES_LOAD}" ||
 		abort "Failed to download pre-defined modules.load for vendor_ramdisk!"
 	echo -e "\n\e[1;32m[✓] Set up modules.load! \e[0m"
 
@@ -419,7 +419,7 @@ EOF
 
 	if [[ ${PF_RD} == "1" ]]; then
 		echo -e "\n\e[1;93m[*] Installing updated modules.load.recovery to ${AK3}! \e[0m"
-		curl -sL "https://github.com/yaap/device_motorola_cancunf/raw/"${MOD_BRANCH}"/modules/modules.load.recovery" -o "${AK3}"/config/modules.load.recovery ||
+		curl -sL "https://github.com/yaap/device_motorola_cancunf/raw/${MOD_BRANCH}/modules/modules.load.recovery" -o "${AK3}"/config/modules.load.recovery ||
 			abort "Failed to install updated modules.load.recovery to ${AK3}!"
 		echo -e "\n\e[1;32m[✓] Installed updated modules.load.recovery to ${AK3}! \e[0m"
 	fi
