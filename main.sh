@@ -47,7 +47,7 @@ if [ "${RELEASE}" == 1 ]; then
 	export STATUS="Release"
 	export CHATID=-1002403811064
 	export re="rc"
-	export MOD_BRANCH="fifteen"
+	export MOD_BRANCH="sixteen"
 else
 	export STATUS="Bleeding-Edge"
 	export CHATID=-1002207791864
