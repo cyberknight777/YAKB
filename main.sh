@@ -20,20 +20,20 @@ KDIR=$(pwd)
 export KDIR
 
 # Device name.
-export DEVICE="OnePlus 7 Series"
+export DEVICE="Motorola moto g54 5G"
 
 # Date of build.
 DATE=$(date +"%Y-%m-%d")
 export DATE
 
 # Device codename.
-export CODENAME="op7"
+export CODENAME="cancunf"
 
 # Builder name.
 export BUILDER="cyberknight777"
 
 # Kernel repository URL.
-export REPO_URL="https://github.com/cyberknight777/dragonheart_kernel_oneplus_sm8150"
+export REPO_URL="https://github.com/cyberknight777/dragonheart_kernel_motorola_cancunf"
 
 # Commit hash of HEAD.
 COMMIT_HASH=$(git rev-parse --short HEAD)
@@ -45,11 +45,11 @@ export DEBUG=0
 # Build status. Set 1 for release builds. | Set 0 for bleeding edge builds.
 if [ "${RELEASE}" == 1 ]; then
 	export STATUS="Release"
-	export CHATID=-1001361882613
+	export CHATID=-1002403811064
 	export re="rc"
 else
 	export STATUS="Bleeding-Edge"
-	export CHATID=-1001564538644
+	export CHATID=-1002207791864
 	export re="r"
 fi
 
@@ -108,11 +108,8 @@ if [[ ${COMPILER} == gcc ]]; then
 
 elif [[ ${COMPILER} == clang ]]; then
 	if [ ! -f "${KDIR}/${COMPILER}/bin/${COMPILER}" ]; then
-		rm -rf "${KDIR:?}/${COMPILER}" || exit 1
-		mkdir "${KDIR}"/"${COMPILER}" || exit 1
-		cd "${KDIR}"/"${COMPILER}" || exit 1
-		bash <(curl -s "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman") -S || exit 1
-		cd "${KDIR}" || exit 1
+		curl -sL https://github.com/LineageOS/android_prebuilts_clang_kernel_linux-x86_clang-r416183b/archive/refs/heads/lineage-20.0.tar.gz | tar -xzf - || exit 1
+		mv "${KDIR}"/android_prebuilts_clang_kernel_linux-x86_clang-r416183b-lineage-20.0 ${COMPILER} || exit 1
 	fi
 
 	KBUILD_COMPILER_STRING=$("${KDIR}"/"${COMPILER}"/bin/"${COMPILER}" -v 2>&1 | head -n 1 | sed 's/(https..*//' | sed 's/ version//')
@@ -230,16 +227,16 @@ img() {
 	rgn
 	echo -e "\n\e[1;93m[*] Building Kernel! \e[0m"
 	BUILD_START=$(date +"%s")
-	time make -j"$PROCS" "${MAKE[@]}" Image dtbo.img dtb.img 2>&1 | tee log.txt
+	time make -j"$PROCS" "${MAKE[@]}" Image.gz mediatek/mt6855.dtb 2>&1 | tee log.txt
 	BUILD_END=$(date +"%s")
 	DIFF=$((BUILD_END - BUILD_START))
-	if [ -f "${OUT_DIR}/arch/arm64/boot/Image" ]; then
+	if [ -f "${OUT_DIR}/arch/arm64/boot/Image.gz" ]; then
 		if [[ ${TGI} == "1" ]]; then
 			tg "*Kernel Built after $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)*"
 		fi
 		echo -e "\n\e[1;32m[✓] Kernel built after $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)! \e[0m"
 		echo -e "\n\e[1;93m[*] Copying built files! \e[0m"
-		cp -p "${OUT_DIR}"/arch/arm64/boot/{Image,dtb.img,dtbo.img} "${DIST_DIR}"/ || exit 1
+		cp -p "${OUT_DIR}"/arch/arm64/boot/{Image.gz,dts/mediatek/mt6855.dtb} "${DIST_DIR}"/ || exit 1
 		echo -e "\n\e[1;32m[✓] Copied built files! \e[0m"
 	else
 		if [[ ${TGI} == "1" ]]; then
@@ -254,10 +251,10 @@ img() {
 dtb() {
 	rgn
 	echo -e "\n\e[1;93m[*] Building DTBS! \e[0m"
-	time make -j"$PROCS" "${MAKE[@]}" dtbs dtbo.img dtb.img || exit 1
+	time make -j"$PROCS" "${MAKE[@]}" dtbs || exit 1
 	echo -e "\n\e[1;32m[✓] Built DTBS! \e[0m"
 	echo -e "\n\e[1;93m[*] Copying DTB files! \e[0m"
-	cp -p "${OUT_DIR}"/arch/arm64/boot/{dtb,dtbo}.img "${DIST_DIR}"/ || exit 1
+	cp -p "${OUT_DIR}"/arch/arm64/boot/dts/mediatek/mt6855.dtb "${DIST_DIR}"/ || exit 1
 	echo -e "\n\e[1;32m[✓] Copied DTB files! \e[0m"
 }
 
@@ -276,7 +273,7 @@ mod() {
 	MOD=$(find "${OUT_DIR}"/modules -type f -name "*.ko")
 	for FILE in ${MOD}; do
 		cp -p "${FILE}" "${DIST_DIR}"/ || exit 1
-		if [[ ${DEBUG} == "0" ]]; then
+		if [[ ${DEBUG} == '0' ]]; then
 			FILENAME=$(basename "${FILE}")
 			if [[ ${COMPILER} == clang ]]; then
 				OBJCOPY="${KDIR}"/"${COMPILER}"/bin/llvm-objcopy
@@ -317,7 +314,8 @@ pre() {
 	cd "${preb}" || exit 1
 	echo "https://cyberknight777:$PASSWORD@github.com" >"${preb}"/.pwd
 	git config credential.helper "store --file ${preb}/.pwd" || exit 1
-	cp -p "${DIST_DIR}"/{Image,dtb.img,dtbo.img} "${preb}"/ || exit 1
+	cp -p "${DIST_DIR}"/Image.gz "${preb}"/ || exit 1
+	cp -p "${DIST_DIR}"/mt6855.dtb "${preb}"/dtb/ || exit 1
 	tar -xvf "${DIST_DIR}"/kernel-uapi-headers.tar.gz -C "${preb}"/kernel-headers/ || exit 1
 	for file in "${preb}"/modules/vendor_boot/*.ko; do
 		filename=$(basename "${file}")
@@ -334,12 +332,12 @@ pre() {
 		fi
 
 	done
-	git add "${preb}"/{Image,dtb.img,dtbo.img,kernel-headers,modules} || exit 1
-	git commit -s -m "kernel: Update prebuilts $(date -u '+%d%m%Y%I%M')" -m "- This is an auto-generated commit." || exit 1
+	git add "${preb}"/{Image.gz,dtb,kernel-headers,modules} || exit 1
+	git commit -s -m "cancunf-kernel: Update prebuilts $(date -u '+%d%m%Y%I%M')" -m "- This is an auto-generated commit." || exit 1
 	git commit --amend --reset-author --no-edit || exit 1
 	git push || exit 1
 	cd "${KDIR}" || exit 1
-	rm -rf "${preb}" | exit 1
+	rm -rf "${preb}" || exit 1
 	echo -e "\n\e[1;32m[✓] Copied built objects to prebuilt kernel tree! \e[0m"
 }
 
@@ -370,13 +368,14 @@ mkzip() {
 		tg "*Building zip!*"
 	fi
 	echo -e "\n\e[1;93m[*] Building zip! \e[0m"
-	cp -p "${DIST_DIR}"/{Image,dtb.img,dtbo.img} "${AK3}"/ || exit 1
+	cat "${DIST_DIR}"/mt6855.dtb >"${AK3}"/dtb || exit 1
+	cp -p "${DIST_DIR}"/Image.gz "${AK3}"/ || exit 1
 	cd "${AK3}" || exit 1
 	zip -r9 "$zipn".zip . -x ".git*" -x "README.md" -x "LICENSE" -x "*.zip" || exit 1
 	echo -e "\n\e[1;32m[✓] Built zip! \e[0m"
 	if [[ ${OTA} == "1" ]]; then
 		local ota="${AK3}/ota"
-		git clone https://github.com/cyberknight777/op7_json.git "${ota}" || exit 1
+		git clone https://github.com/cyberknight777/cancunf_releases.git "${ota}" || exit 1
 		cd "${ota}" || exit 1
 		echo "https://cyberknight777:$PASSWORD@github.com" >"${ota}"/.pwd
 		git config credential.helper "store --file ${ota}/.pwd" || exit 1
@@ -389,8 +388,8 @@ mkzip() {
   \"kernel\": {
   \"name\": \"DragonHeart\",
   \"version\": \"${VERSION}\",
-  \"link\": \"https://github.com/cyberknight777/op7_json/releases/download/${VERSION}/${zipn}.zip\",
-  \"changelog_url\": \"https://raw.githubusercontent.com/cyberknight777/op7_json/master/changelog_r.md\",
+  \"link\": \"https://github.com/cyberknight777/cancunf_releases/releases/download/${VERSION}/${zipn}.zip\",
+  \"changelog_url\": \"https://raw.githubusercontent.com/cyberknight777/cancunf_releases/master/changelog_r.md\",
   \"date\": \"${DATE}\",
   \"sha1\": \"${sha1}\"
   },
@@ -413,8 +412,8 @@ mkzip() {
   \"kernel\": {
   \"name\": \"DragonHeart\",
   \"version\": \"${VERSION}\",
-  \"link\": \"https://github.com/cyberknight777/op7_json/releases/download/${VERSION}/${zipn}.zip\",
-  \"changelog_url\": \"https://raw.githubusercontent.com/cyberknight777/op7_json/master/changelog.md\",
+  \"link\": \"https://github.com/cyberknight777/cancunf_releases/releases/download/${VERSION}/${zipn}.zip\",
+  \"changelog_url\": \"https://raw.githubusercontent.com/cyberknight777/cancunf_releases/master/changelog.md\",
   \"date\": \"${DATE}\",
   \"sha1\": \"${sha1}\"
   },
@@ -436,9 +435,9 @@ mkzip() {
 	if [[ ${TGI} == "1" ]]; then
 		tgs "${AK3}/${zipn}.zip" "*#${kver} ${KBUILD_COMPILER_STRING}*"
 		tg "
-*Build*: https://github.com/cyberknight777/op7\_json/releases/download/${VERSION}/${zipn}.zip
-*Changelog*: https://github.com/cyberknight777/op7\_json/blob/master/changelog\_${re}.md
-*OTA*: https://raw.githubusercontent.com/cyberknight777/op7\_json/master/DragonHeart-${re}.json
+*Build*: https://github.com/cyberknight777/cancunf\_releases/releases/download/${VERSION}/${zipn}.zip
+*Changelog*: https://github.com/cyberknight777/cancunf\_releases/blob/master/changelog\_${re}.md
+*OTA*: https://raw.githubusercontent.com/cyberknight777/cancunf\_releases/master/DragonHeart-${re}.json
 "
 	fi
 }
