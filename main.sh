@@ -753,7 +753,7 @@ ndialog() {
 		;;
 	6)
 		dialog --inputbox --stdout "Enter LTO mode (thin|full): " 15 50 | tee .l
-		pr=$(cat .l)
+		lt=$(cat .l)
 		if [ -z "${lt}" ]; then
 			dialog --inputbox --stdout "Enter LTO mode (thin|full): " 15 50 | tee .l
 		fi
