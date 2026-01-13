@@ -737,7 +737,9 @@ ndialog() {
 		dialog --inputbox --stdout "Enter prebuilt kernel repo: " 15 50 | tee .p
 		pr=$(cat .p)
 		if [ -z "${pr}" ]; then
-			dialog --inputbox --stdout "Enter prebuilt kernel repo: " 15 50 | tee .p
+			clear
+			rm .p
+			abort "No input detected!"
 		fi
 		clear
 		pre "${pr}"
@@ -755,7 +757,9 @@ ndialog() {
 		dialog --inputbox --stdout "Enter LTO mode (thin|full): " 15 50 | tee .l
 		lt=$(cat .l)
 		if [ -z "${lt}" ]; then
-			dialog --inputbox --stdout "Enter LTO mode (thin|full): " 15 50 | tee .l
+			clear
+			rm .l
+			abort "No input detected!"
 		fi
 		clear
 		lto "${lt}"
@@ -796,6 +800,11 @@ ndialog() {
 	9)
 		dialog --inputbox --stdout "Enter version number: " 15 50 | tee .t
 		ver=$(cat .t)
+		if [ -z "${ver}" ]; then
+			clear
+			rm .t
+			abort "No input detected!"
+		fi
 		clear
 		upr "${ver}"
 		rm .t
@@ -823,7 +832,9 @@ ndialog() {
 		dialog --inputbox --stdout "Enter object path: " 15 50 | tee .f
 		ob=$(cat .f)
 		if [ -z "${ob}" ]; then
-			dialog --inputbox --stdout "Enter object path: " 15 50 | tee .f
+			clear
+			rm .f
+			abort "No input detected!"
 		fi
 		clear
 		obj "${ob}"
