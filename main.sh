@@ -149,7 +149,6 @@ VENDOR_DLKM_EXTRA=(
 	leds-gpio.ko
 	mmi_decrete_charger_cp_qc3p.ko
 	mmi_info.ko
-	mmi_relay.ko
 	nova_0flash_mmi_v2.ko
 	nxp_ese.ko
 	nxp_i2c.ko
@@ -170,7 +169,6 @@ VENDOR_RAMDISK_EXTRA=(
 	emi-mpu-hook-v1.ko
 	ilitek_v3_mmi.ko
 	mmi_info.ko
-	mmi_relay.ko
 	mtk_battery_oc_throttling.ko
 	mtk-cqdma.ko
 	mtk_dynamic_loading_throttling.ko
