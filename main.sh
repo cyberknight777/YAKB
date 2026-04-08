@@ -616,6 +616,15 @@ obj() {
 	echo -e "\n\e[1;32m[✓] Built ${1}! \e[0m"
 }
 
+# A function to build external modules.
+extmod() {
+	rgn
+	echo -e "\n\e[1;93m[*] Building ${1} as an external module! \e[0m"
+	make -j"$PROCS" "${MAKE[@]}" modules_prepare || abort "Failed to set up build for external modules!"
+	make -j"$PROCS" "${MAKE[@]}" M="${1}" modules || abort "Failed to build external modules!"
+	echo -e "\n\e[1;32m[✓] Built ${1} as an external module! \e[0m"
+}
+
 # A function to uprev localversion in defconfig.
 upr() {
 	echo -e "\n\e[1;93m[*] Bumping localversion to -DragonHeart-${1}! \e[0m"
@@ -634,6 +643,7 @@ example: bash $0 mcfg img
 example: bash $0 mcfg img mkzip
 example: bash $0 --obj=drivers/android/binder.o
 example: bash $0 --obj=kernel/sched/
+example: bash $0 --extmod=private/google-modules/amplifiers/cs35l41
 example: bash $0 --upr=r16
 example: bash $0 --pre=YAAP/device_xiaomi_sunny-kernel
 example: bash $0 --lto=thin
@@ -647,6 +657,7 @@ example: bash $0 --lto=thin
 	 --lto  Modify LTO mode
 	 mkzip  Builds anykernel3 zip
 	 --obj  Builds specific driver/subsystem
+	 --extmod Builds external modules
 	 rgn    Regenerates defconfig
 	 --upr  Uprevs kernel version in defconfig
 \e[0m"
@@ -671,8 +682,9 @@ ndialog() {
 		9 "Uprev localversion"
 		10 "Build AnyKernel3 zip"
 		11 "Build a specific object"
-		12 "Clean"
-		13 "Exit"
+		12 "Build an external module"
+		13 "Clean"
+		14 "Exit"
 	)
 	CHOICE=$(dialog --clear \
 		--backtitle "${BACKTITLE}" \
@@ -847,6 +859,26 @@ ndialog() {
 		fi
 		;;
 	12)
+		dialog --inputbox --stdout "Enter object path: " 15 50 | tee .e
+		ex=$(cat .e)
+		if [ -z "${ex}" ]; then
+			clear
+			rm .e
+			abort "No input detected!"
+		fi
+		clear
+		extmod "${ex}"
+		rm .e
+		echo -ne "\e[1mPress enter to continue or 0 to exit! \e[0m"
+		read -r a1
+		if [ "${a1}" == "0" ]; then
+			exit 0
+		else
+			clear
+			ndialog
+		fi
+		;;
+	13)
 		clear
 		clean
 		img
@@ -859,7 +891,7 @@ ndialog() {
 			ndialog
 		fi
 		;;
-	13)
+	14)
 		echo -e "\n\e[1m Exiting YAKB...\e[0m"
 		sleep 3
 		exit 0
@@ -920,6 +952,15 @@ for arg in "$@"; do
 			exit 1
 		else
 			obj "${object}"
+		fi
+		;;
+	"--extmod="*)
+		module="${arg#*=}"
+		if [[ -z ${module} ]]; then
+			echo "Use --extmod=/path/to/modulesource"
+			exit 1
+		else
+			extmod "${module}"
 		fi
 		;;
 	"rgn")
