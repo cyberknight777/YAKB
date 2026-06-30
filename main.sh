@@ -321,7 +321,7 @@ img() {
 		echo -e "\n\e[1;32m[✓] Kernel built after $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)! \e[0m"
 		echo -e "\n\e[1;93m[*] Copying built files! \e[0m"
 		mkdir -p "${DIST_DIR}" || abort "Failed to create distribution output directory"
-		cp -p "${OUT_DIR}"/arch/arm64/boot/{Image.gz,dts/mediatek/mt6855.dtb} "${DIST_DIR}"/ ||
+		cp -p "${OUT_DIR}"/arch/arm64/boot/{Image.gz,dtbo.img,dts/mediatek/mt6855.dtb} "${DIST_DIR}"/ ||
 			abort "Failed to copy built files!"
 		echo -e "\n\e[1;32m[✓] Copied built files! \e[0m"
 	else
@@ -332,13 +332,13 @@ img() {
 # A function to build DTBs.
 dtb() {
 	rgn
-	echo -e "\n\e[1;93m[*] Building DTBS! \e[0m"
-	make -j"$PROCS" "${MAKE[@]}" mediatek/mt6855.dtb || abort "Failed to build dtb!"
-	echo -e "\n\e[1;32m[✓] Built DTBS! \e[0m"
-	echo -e "\n\e[1;93m[*] Copying DTB files! \e[0m"
-	cp -p "${OUT_DIR}"/arch/arm64/boot/dts/mediatek/mt6855.dtb "${DIST_DIR}"/ ||
-		abort "Failed to copy DTB files!"
-	echo -e "\n\e[1;32m[✓] Copied DTB files! \e[0m"
+	echo -e "\n\e[1;93m[*] Building DTBS and DTBO! \e[0m"
+	make -j"$PROCS" "${MAKE[@]}" mediatek/mt6855.dtb dtbo.img || abort "Failed to build dtb and dtbo!"
+	echo -e "\n\e[1;32m[✓] Built DTBS and DTBO! \e[0m"
+	echo -e "\n\e[1;93m[*] Copying DTBS and DTBO images! \e[0m"
+	cp -p "${OUT_DIR}"/arch/arm64/boot/dts/mediatek/mt6855.dtb "${OUT_DIR}"/arch/arm64/boot/dtbo.img "${DIST_DIR}"/ ||
+		abort "Failed to copy DTBS and DTBO images!"
+	echo -e "\n\e[1;32m[✓] Copied DTBS and DTBO images! \e[0m"
 }
 
 # A sub-function to generate AOSP-compatible vendor_ramdisk fragment and vendor_dlkm modules.
@@ -482,6 +482,7 @@ pre() {
 	git config credential.helper "store --file ${preb}/.pwd" || abort "Failed to configure git credential.helper for prebuilt kernel tree!"
 	cp -p "${DIST_DIR}"/Image.gz "${preb}"/ || abort "Failed to copy Image.gz to prebuilt kernel tree!"
 	cp -p "${DIST_DIR}"/mt6855.dtb "${preb}"/dtb/ || abort "Failed to copy mt6855.dtb to prebuilt kernel tree!"
+	cp -p "${DIST_DIR}"/dtbo.img "${preb}"/ || abort "Failed to copy dtbo.img to prebuilt kernel tree!"
 	tar -xvf "${DIST_DIR}"/kernel-uapi-headers.tar.gz -C "${preb}"/kernel-headers/ ||
 		abort "Failed to extract GZ-compressed tarball for UAPI kernel headers into prebuilt kernel tree"
 	cp -p "${DIST_DIR}"/dlkm.cpio.lz4 "${preb}"/modules/vendor_boot/dlkm.cpio || abort "Failed to copy prebuilt vendor_ramdisk fragment into prebuilt kernel tree!"
@@ -493,7 +494,7 @@ pre() {
 		fi
 
 	done
-	git add "${preb}"/{Image.gz,dtb,kernel-headers,modules} || abort "Failed to add file contents to git index for prebuilt kernel tree!"
+	git add "${preb}"/{Image.gz,dtb,dtbo.img,kernel-headers,modules} || abort "Failed to add file contents to git index for prebuilt kernel tree!"
 	git commit -s -m "cancunf-kernel: Update prebuilts $(date -u '+%d%m%Y%I%M')" -m "- This is an auto-generated commit." || abort "Failed to record changes to prebuilt kernel tree!"
 	git commit --amend --reset-author --no-edit || abort "Failed to reset authorship information to prebuilt kernel tree!"
 	git push || abort "Failed to update remote refs to prebuilt kernel tree!"
@@ -529,6 +530,7 @@ mkzip() {
 	fi
 	echo -e "\n\e[1;93m[*] Building zip! \e[0m"
 	cat "${DIST_DIR}"/mt6855.dtb >"${AK3}"/dtb || abort "Failed to concatenate mt6855.dtb to AnyKernel3 directory!"
+	cp "${DIST_DIR}"/dtbo.img >"${AK3}"/dtbo.img || abort "Failed to copy dtbo.img to AnyKernel3 directory!"
 	cp -p "${DIST_DIR}"/Image.gz "${AK3}"/ || abort "Failed to copy Image.gz to AnyKernel3 directory!"
 	cp -p "${DIST_DIR}"/dlkm.cpio.lz4 "${AK3}"/modules/ || abort "Failed to copy LZ4-compressed CPIO archive for vendor_ramdisk modules to AnyKernel3 directory!"
 	cp -p "${DIST_DIR}"/dlkm.tar.xz "${AK3}"/modules/ || abort "Failed to copy XZ-compressed tarball for vendor_dlkm modules to AnyKernel3 directory!"
