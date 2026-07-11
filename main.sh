@@ -530,7 +530,7 @@ mkzip() {
 	fi
 	echo -e "\n\e[1;93m[*] Building zip! \e[0m"
 	cat "${DIST_DIR}"/mt6855.dtb >"${AK3}"/dtb || abort "Failed to concatenate mt6855.dtb to AnyKernel3 directory!"
-	cp "${DIST_DIR}"/dtbo.img >"${AK3}"/dtbo.img || abort "Failed to copy dtbo.img to AnyKernel3 directory!"
+	cp "${DIST_DIR}"/dtbo.img "${AK3}"/dtbo.img || abort "Failed to copy dtbo.img to AnyKernel3 directory!"
 	cp -p "${DIST_DIR}"/Image.gz "${AK3}"/ || abort "Failed to copy Image.gz to AnyKernel3 directory!"
 	cp -p "${DIST_DIR}"/dlkm.cpio.lz4 "${AK3}"/modules/ || abort "Failed to copy LZ4-compressed CPIO archive for vendor_ramdisk modules to AnyKernel3 directory!"
 	cp -p "${DIST_DIR}"/dlkm.tar.xz "${AK3}"/modules/ || abort "Failed to copy XZ-compressed tarball for vendor_dlkm modules to AnyKernel3 directory!"
