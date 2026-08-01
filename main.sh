@@ -141,8 +141,6 @@ VENDOR_DLKM_EXTRA=(
 	bt_drv_connac1x.ko
 	connfem.ko
 	fmradio_drv_mt6631_6635.ko
-	fpsensor_mtk_spi.ko
-	goodix_fps_tee.ko
 	gps_drv_stp.ko
 	gps_pwr.ko
 	ilitek_v3_mmi.ko
