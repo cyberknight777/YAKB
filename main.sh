@@ -271,6 +271,9 @@ clean() {
 
 # A function to regenerate defconfig.
 rgn() {
+	if [ ! -d "${DIST_DIR}" ]; then
+		mkdir -p "${DIST_DIR}" || abort "Failed to create distribution output directory"
+	fi
 	echo -e "\n\e[1;93m[*] Regenerating defconfig! \e[0m"
 	make "${MAKE[@]}" "${CONFIG}" || abort "Failed to regenerate defconfig!"
 	cp "${OUT_DIR}"/.config "${KDIR}"/arch/arm64/configs/"${CONFIG}" ||
@@ -318,7 +321,6 @@ img() {
 		fi
 		echo -e "\n\e[1;32m[✓] Kernel built after $((DIFF / 60)) minute(s) and $((DIFF % 60)) second(s)! \e[0m"
 		echo -e "\n\e[1;93m[*] Copying built files! \e[0m"
-		mkdir -p "${DIST_DIR}" || abort "Failed to create distribution output directory"
 		cp -p "${OUT_DIR}"/arch/arm64/boot/{Image.gz,dtbo.img,dts/mediatek/mt6855.dtb} "${DIST_DIR}"/ ||
 			abort "Failed to copy built files!"
 		echo -e "\n\e[1;32m[✓] Copied built files! \e[0m"
